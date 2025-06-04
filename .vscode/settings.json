@@ -1,0 +1,14 @@
+{
+    "C_Cpp.intelliSenseEngine": "default",
+    "idf.espIdfPath": "/Users/Mario76/esp/v5.4.1/esp-idf",
+    "idf.pythonInstallPath": "C:\\Users\\Mario76\\.espressif\\tools\\idf-python\\3.11.2\\python.exe",
+    "idf.openOcdConfigs": [
+        "interface/ftdi/esp32_devkitj_v1.cfg",
+        "target/esp32.cfg"
+    ],
+    "idf.port": "/dev/tty.debug-console",
+    "idf.toolsPath": "/Users/Mario76/.espressif",
+    "idf.customExtraVars": {
+        "IDF_TARGET": "esp32"
+    }
+}
