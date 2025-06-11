@@ -28,13 +28,15 @@
  #define GPIO_STATE_HIGH 1 /*!< Logic high */
  
  /* Default pinout  */
- #define DATA_0_PIN 19          /*!< DATA 0 */
- #define DATA_1_PIN 18          /*!< DATA 0 */
- #define DATA_2_PIN 17          /*!< DATA 0 */
- #define DATA_3_PIN 16          /*!< DATA 0 */
- #define ENABLE_PIN 22          /*!< Enable  */
- #define REGISTER_SELECT_PIN 23 /*!< Register Select  */
+ #define DATA_0_PIN 26          /*!< DATA 0 */
+ #define DATA_1_PIN 27          /*!< DATA 0 */
+ #define DATA_2_PIN 14          /*!< DATA 0 */
+ #define DATA_3_PIN 13          /*!< DATA 0 */
+ #define ENABLE_PIN 33          /*!< Enable  */
+ #define REGISTER_SELECT_PIN 32 /*!< Register Select  */
  
+ lcd_t lcd_base;
+
  /**
   * @brief Trigger LCD enable pin
   *
@@ -357,3 +359,120 @@
        ESP_LOGI(lcd_tag, "LCD write was sucessfull...\n");
      }
  }
+
+void lcd_wait_connect(){
+    lcdClear(&lcd_base);
+    lcdSetText(&lcd_base, "Wait connect...", 0, 0);
+}
+void lcd_connected_wifi(){
+    lcdClear(&lcd_base);
+    lcdSetText(&lcd_base, "Connected!", 0, 0);
+    lcdSetText(&lcd_base, "Enjoy the Comp!", 0, 1);
+}
+void lcd_not_connected_wifi(){
+    lcdClear(&lcd_base);
+    lcdSetText(&lcd_base, "Contact delegate", 0, 0);
+    lcdSetText(&lcd_base, "Please set WiFi", 0, 1);
+}
+void lcd_disconnected_wifi(){
+    lcdClear(&lcd_base);
+    lcdSetText(&lcd_base, "Disconnected...", 0, 0);
+    lcdSetText(&lcd_base, "Reconnecting...", 0, 1);
+}
+void lcd_wait_card(char *type){
+    lcdClear(&lcd_base);
+    char message[17];
+    snprintf(message, sizeof(message), "Waiting for %s", type);
+    lcdSetText(&lcd_base, "Please tag Card", 0, 0);
+    lcdSetText(&lcd_base, message, 0, 1);
+}
+void lcd_judge(char *name){
+    lcdClear(&lcd_base);
+    lcdSetText(&lcd_base, "Judge Registered", 0, 0);
+    lcdSetText(&lcd_base, name, 0, 1);
+}
+void lcd_scanned(){
+    lcdSetText(&lcd_base, "Scanned...      ", 0, 0);
+}
+void lcd_not_registered(){
+    lcdSetText(&lcd_base, "Not Registered..", 0, 0);
+}
+void lcd_not_registered_delegate(){
+    lcdClear(&lcd_base);
+    lcdSetText(&lcd_base, "Not Registered..", 0, 0);
+    lcdSetText(&lcd_base, "Contact Delegate", 0, 1);
+}
+void lcd_waiting_for_card(){
+    lcdSetText(&lcd_base, "Waiting for tags", 0, 0);
+}
+void lcd_print_second(char *time){
+    lcdSetText(&lcd_base, time, 0, 1);
+}
+void lcd_uploaded(){
+    lcdClear(&lcd_base);
+    lcdSetText(&lcd_base, "Uploaded!", 0, 0);
+    lcdSetText(&lcd_base, "Enjoy the Comp!", 0, 1);
+}
+void lcd_bwpa(char *bpa, char *wpa){
+    lcdClear(&lcd_base);
+    lcdSetText(&lcd_base, "BPA5: ", 0, 0);
+    lcdSetText(&lcd_base, bpa, 6, 0);
+    lcdSetText(&lcd_base, "WPA5: ", 0, 1);
+    lcdSetText(&lcd_base, wpa, 6, 1);
+}
+void lcd_sinavg(char *single, char *average){
+    lcdClear(&lcd_base);
+    lcdSetText(&lcd_base, "Single: ", 0, 0);
+    lcdSetText(&lcd_base, single, 8, 0);
+    lcdSetText(&lcd_base, "Average: ", 0, 1);
+    lcdSetText(&lcd_base, average, 9, 1);
+}
+void lcd_not_matched(){
+    lcdSetText(&lcd_base, "Player not match", 0, 0);
+}
+void lcd_com_error(){
+    lcdSetText(&lcd_base, "Something Error ", 0, 0);
+}
+void lcd_which_comp(char *comp_name){
+    lcdClear(&lcd_base);
+    lcdSetText(&lcd_base, "Which Comp?", 0, 0);
+    lcdSetText(&lcd_base, comp_name, 0, 1);
+}
+void lcd_comp_selected(){
+    lcdSetText(&lcd_base, "Comp Selected...", 0, 0);
+}
+void lcd_comp_not_found(){
+    lcdClear(&lcd_base);
+    lcdSetText(&lcd_base, "Comp not found..", 0, 0);
+    lcdSetText(&lcd_base, "Please reset...", 0, 1);
+}
+void lcd_reset_timer(){
+    lcdClear(&lcd_base);
+    lcdSetText(&lcd_base, "Plz reset timer!", 0, 0);
+}
+void lcd_duplicated_judge(){
+    lcdClear(&lcd_base);
+    lcdSetText(&lcd_base, "You are judge...", 0, 0);
+}
+void lcd_record_info(char *record, char *round){
+    lcdClear(&lcd_base);
+    lcdSetText(&lcd_base, record, 0, 0);
+    lcdSetText(&lcd_base, round, 0, 1);
+}
+void lcd_dnf(){
+    lcdClear(&lcd_base);
+    lcdSetText(&lcd_base, "Stop! That's DNF", 0, 0);
+}
+void lcd_inspection(char *inspection){
+    lcdSetText(&lcd_base, "Inspection: ", 0, 0);
+    lcdSetText(&lcd_base, inspection, 0, 1);
+}
+void lcd_inspection_alert(char *alert){
+    lcdSetText(&lcd_base, alert, 13, 1);
+}
+void lcd_timer_running(){
+    lcdSetText(&lcd_base, "Solving...      ", 0, 0);
+}
+void lcd_timer_stopped(){
+    lcdSetText(&lcd_base, "Record          ", 0, 0);
+}

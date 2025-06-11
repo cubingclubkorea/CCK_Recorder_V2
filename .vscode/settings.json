@@ -10,5 +10,12 @@
     "idf.toolsPath": "/Users/Mario76/.espressif",
     "idf.customExtraVars": {
         "IDF_TARGET": "esp32"
+    },
+    "idf.portWin": "COM8",
+    "idf.flashType": "UART",
+    "files.associations": {
+        "*.dbclient-js": "javascript",
+        "future": "c",
+        "system_error": "c"
     }
 }
