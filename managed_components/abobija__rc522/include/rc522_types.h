@@ -44,6 +44,7 @@ typedef enum
 {
     RC522_EVENT_ANY = ESP_EVENT_ANY_ID,
     RC522_EVENT_NONE,
+    RC522_EVENT_PICC_UID,                /*<! Event for PICC UID */
     RC522_EVENT_PICC_STATE_CHANGED,
 } rc522_event_t;
 
