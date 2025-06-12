@@ -1,0 +1,65 @@
+ #include <stdio.h>
+ #include <string.h>
+ #include "esp_log.h"
+ #include "rc522_custom.h"
+
+#define RC522_SPI_BUS_GPIO_MISO    (19)
+#define RC522_SPI_BUS_GPIO_MOSI    (23)
+#define RC522_SPI_BUS_GPIO_SCLK    (18)
+#define RC522_SPI_SCANNER_GPIO_SDA (5)
+#define RC522_SCANNER_GPIO_RST     (22)
+
+#define UID_BUFFER_SIZE 30
+extern char uid_buffer[];
+
+static rc522_spi_config_t driver_config = {
+    .host_id = SPI3_HOST,
+    .bus_config = &(spi_bus_config_t){
+        .miso_io_num = RC522_SPI_BUS_GPIO_MISO,
+        .mosi_io_num = RC522_SPI_BUS_GPIO_MOSI,
+        .sclk_io_num = RC522_SPI_BUS_GPIO_SCLK,
+    },
+    .dev_config = {
+        .spics_io_num = RC522_SPI_SCANNER_GPIO_SDA,
+    },
+    .rst_io_num = RC522_SCANNER_GPIO_RST,
+};
+
+static rc522_driver_handle_t driver;
+static rc522_handle_t scanner;
+
+static void on_picc_state_changed(void *arg, esp_event_base_t base, int32_t event_id, void *data)
+{
+    rc522_picc_state_changed_event_t *event = (rc522_picc_state_changed_event_t *)data;
+    rc522_picc_t *picc = event->picc;
+
+    if (picc->state == RC522_PICC_STATE_ACTIVE) {
+        rc522_picc_uid_to_str(&picc->uid, uid_buffer, UID_BUFFER_SIZE);
+    }
+    else if (picc->state == RC522_PICC_STATE_IDLE && event->old_state >= RC522_PICC_STATE_ACTIVE) {
+        memset(uid_buffer, 0, UID_BUFFER_SIZE);
+    }
+}
+
+void rc522_custom_init(void)
+{
+    rc522_spi_create(&driver_config, &driver);
+    rc522_driver_install(driver);
+
+    rc522_config_t scanner_config = {
+        .driver = driver,
+    };
+
+    rc522_create(&scanner_config, &scanner);
+    rc522_register_events(scanner, RC522_EVENT_PICC_STATE_CHANGED, on_picc_state_changed, NULL);
+}
+
+void rc522_custom_start(void)
+{
+    rc522_start(scanner);
+}
+
+void rc522_custom_pause(void)
+{
+    rc522_pause(scanner);
+}

@@ -21,6 +21,8 @@ esp_err_t rc522_pause(rc522_handle_t rc522);
 
 esp_err_t rc522_destroy(rc522_handle_t rc522);
 
+
+
 #ifdef __cplusplus
 }
 #endif

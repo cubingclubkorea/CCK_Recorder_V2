@@ -16,6 +16,7 @@
     "files.associations": {
         "*.dbclient-js": "javascript",
         "future": "c",
-        "system_error": "c"
+        "system_error": "c",
+        "task.h": "c"
     }
 }
