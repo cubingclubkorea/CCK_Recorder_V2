@@ -22,6 +22,8 @@
         "utility": "c",
         "compare": "c",
         "iosfwd": "cpp",
-        "xlocbuf": "cpp"
+        "xlocbuf": "cpp",
+        "gpio.h": "c",
+        "uart.h": "c"
     }
 }

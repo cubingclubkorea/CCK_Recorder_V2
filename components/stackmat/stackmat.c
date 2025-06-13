@@ -1,6 +1,17 @@
 #include "stackmat.h"
 #include "esp_log.h"
 
+#if CONFIG_IDF_TARGET_ESP32
+#define RXD2_PIN GPIO_NUM_16
+
+#elif CONFIG_IDF_TARGET_ESP32S3
+#define RXD2_PIN GPIO_NUM_18
+
+#else
+#error "Unsupported target. Please define RXD2_PIN for this target."
+
+#endif
+
 StackmatTimer stackmatTimer;
 char data[9];
 

@@ -28,12 +28,23 @@
  #define GPIO_STATE_HIGH 1 /*!< Logic high */
  
  /* Default pinout  */
+ #if CONFIG_IDF_TARGET_ESP32
  #define DATA_0_PIN 26          /*!< DATA 0 */
  #define DATA_1_PIN 27          /*!< DATA 0 */
  #define DATA_2_PIN 14          /*!< DATA 0 */
  #define DATA_3_PIN 13          /*!< DATA 0 */
  #define ENABLE_PIN 33          /*!< Enable  */
  #define REGISTER_SELECT_PIN 32 /*!< Register Select  */
+
+ #elif CONFIG_IDF_TARGET_ESP32S3
+ #define DATA_0_PIN 12          /*!< DATA 0 */
+ #define DATA_1_PIN 11          /*!< DATA 0 */
+ #define DATA_2_PIN 10          /*!< DATA 0 */
+ #define DATA_3_PIN 9          /*!< DATA 0 */
+ #define ENABLE_PIN 13          /*!< Enable  */
+ #define REGISTER_SELECT_PIN 14 /*!< Register Select  */
+
+ #endif
  
  lcd_t lcd_base;
 

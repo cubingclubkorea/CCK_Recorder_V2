@@ -1,19 +1,8 @@
-#ifndef STACKMAT_H_
-#define STACKMAT_H_
+#ifndef _STACKMAT_H_
+#define _STACKMAT_H_
 
 #include "driver/gpio.h"
 #include "driver/uart.h"
-
-#if CONFIG_IDF_TARGET_ESP32
-#define RXD2_PIN GPIO_NUM_16
-
-#elif CONFIG_IDF_TARGET_ESP32S3
-#define RXD2_PIN GPIO_NUM_18
-
-#else
-#error "Unsupported target. Please define RXD2_PIN for this target."
-
-#endif
 
 static const int RX_BUFFER_SIZE = 1024; // Size of the receive buffer
 
