@@ -17,6 +17,11 @@
         "*.dbclient-js": "javascript",
         "future": "c",
         "system_error": "c",
-        "task.h": "c"
+        "task.h": "c",
+        "chrono": "c",
+        "utility": "c",
+        "compare": "c",
+        "iosfwd": "cpp",
+        "xlocbuf": "cpp"
     }
 }
