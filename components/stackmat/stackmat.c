@@ -20,6 +20,7 @@ void stackmat_init()
     ESP_ERROR_CHECK(uart_driver_install(UART_NUM_2, RX_BUFFER_SIZE, 0, 0, NULL, 0));
     ESP_ERROR_CHECK(uart_param_config(UART_NUM_2, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(UART_NUM_2, UART_PIN_NO_CHANGE, RXD2_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+    xTaskCreate(stackmat_task, "stackmat_task", 2048, NULL, 3, NULL);
 }
 
 static void stackmat_get_uart(char *buffer, size_t buffer_size)
@@ -84,4 +85,12 @@ uint8_t stackmat_get_time()
     ESP_LOGI("Stackmat", "State: %c, Time: %02d:%02d.%03d", stackmatTimer.state, stackmatTimer.minute, stackmatTimer.second, stackmatTimer.mill);
 
     return 0; // Success
+}
+
+void stackmat_task(void *arg)
+{
+    while (1) {
+        stackmat_get_time();
+        vTaskDelay(pdMS_TO_TICKS(50)); // Delay for 10ms before the next read
+    }
 }

@@ -44,4 +44,6 @@ uint32_t stackmat_get_total_time();
 
 uint8_t stackmat_get_time();
 
+void stackmat_task(void *arg);
+
 #endif

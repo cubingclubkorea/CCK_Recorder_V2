@@ -6,8 +6,4 @@
 
 void app_main(void){
     stackmat_init();
-    while(1){
-        stackmat_get_time();
-        vTaskDelay(pdMS_TO_TICKS(10)); // Delay for 1 second
-    }
 }
