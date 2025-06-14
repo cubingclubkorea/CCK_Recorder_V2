@@ -5,15 +5,12 @@
 
 #define WIFI_MAX_TRY_COUNT 5
 
-#define WIFI_CONNECTED_BIT BIT0
-#define WIFI_FAIL_BIT      BIT1
-
 typedef struct {
-    char *ssid;
-    char *pass;
+    uint8_t ssid[64];
+    uint8_t pass[64];
 } wifi_info_t;
 
-wifi_info_t wifi_info;
+extern wifi_info_t wifi_info;
 
 void wifi_init_sta(void);
 

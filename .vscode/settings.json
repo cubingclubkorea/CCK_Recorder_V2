@@ -24,6 +24,7 @@
         "iosfwd": "cpp",
         "xlocbuf": "cpp",
         "gpio.h": "c",
-        "uart.h": "c"
+        "uart.h": "c",
+        "sys.h": "c"
     }
 }
