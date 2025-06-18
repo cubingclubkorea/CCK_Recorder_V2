@@ -6,7 +6,7 @@
 #define WIFI_MAX_TRY_COUNT 5
 
 typedef struct {
-    uint8_t ssid[64];
+    uint8_t ssid[32];
     uint8_t pass[64];
 } wifi_info_t;
 

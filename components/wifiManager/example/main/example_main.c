@@ -3,7 +3,9 @@
  #include "freertos/timers.h"
  #include "freertos/task.h"
 #include "wifimanager.h"
+#include "fatfs.h"
 
 void app_main(void){
-    stackmat_init();
+    fatfs_mount_flash();
+    wifi_init_sta();
 }
