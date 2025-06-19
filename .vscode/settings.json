@@ -25,6 +25,8 @@
         "xlocbuf": "cpp",
         "gpio.h": "c",
         "uart.h": "c",
-        "sys.h": "c"
+        "sys.h": "c",
+        "rc522.h": "c",
+        "string.h": "c"
     }
 }

@@ -371,21 +371,21 @@
      }
  }
 
-void lcd_wait_connect(){
+void lcd_wait_connect(void){
     lcdClear(&lcd_base);
     lcdSetText(&lcd_base, "Wait connect...", 0, 0);
 }
-void lcd_connected_wifi(){
+void lcd_connected_wifi(void){
     lcdClear(&lcd_base);
     lcdSetText(&lcd_base, "Connected!", 0, 0);
     lcdSetText(&lcd_base, "Enjoy the Comp!", 0, 1);
 }
-void lcd_not_connected_wifi(){
+void lcd_not_connected_wifi(void){
     lcdClear(&lcd_base);
     lcdSetText(&lcd_base, "Contact delegate", 0, 0);
     lcdSetText(&lcd_base, "Please set WiFi", 0, 1);
 }
-void lcd_disconnected_wifi(){
+void lcd_disconnected_wifi(void){
     lcdClear(&lcd_base);
     lcdSetText(&lcd_base, "Disconnected...", 0, 0);
     lcdSetText(&lcd_base, "Reconnecting...", 0, 1);
@@ -402,24 +402,24 @@ void lcd_judge(char *name){
     lcdSetText(&lcd_base, "Judge Registered", 0, 0);
     lcdSetText(&lcd_base, name, 0, 1);
 }
-void lcd_scanned(){
+void lcd_scanned(void){
     lcdSetText(&lcd_base, "Scanned...      ", 0, 0);
 }
-void lcd_not_registered(){
+void lcd_not_registered(void){
     lcdSetText(&lcd_base, "Not Registered..", 0, 0);
 }
-void lcd_not_registered_delegate(){
+void lcd_not_registered_delegate(void){
     lcdClear(&lcd_base);
     lcdSetText(&lcd_base, "Not Registered..", 0, 0);
     lcdSetText(&lcd_base, "Contact Delegate", 0, 1);
 }
-void lcd_waiting_for_card(){
+void lcd_waiting_for_card(void){
     lcdSetText(&lcd_base, "Waiting for tags", 0, 0);
 }
 void lcd_print_second(char *time){
     lcdSetText(&lcd_base, time, 0, 1);
 }
-void lcd_uploaded(){
+void lcd_uploaded(void){
     lcdClear(&lcd_base);
     lcdSetText(&lcd_base, "Uploaded!", 0, 0);
     lcdSetText(&lcd_base, "Enjoy the Comp!", 0, 1);
@@ -438,10 +438,10 @@ void lcd_sinavg(char *single, char *average){
     lcdSetText(&lcd_base, "Average: ", 0, 1);
     lcdSetText(&lcd_base, average, 9, 1);
 }
-void lcd_not_matched(){
+void lcd_not_matched(void){
     lcdSetText(&lcd_base, "Player not match", 0, 0);
 }
-void lcd_com_error(){
+void lcd_com_error(void){
     lcdSetText(&lcd_base, "Something Error ", 0, 0);
 }
 void lcd_which_comp(char *comp_name){
@@ -449,19 +449,19 @@ void lcd_which_comp(char *comp_name){
     lcdSetText(&lcd_base, "Which Comp?", 0, 0);
     lcdSetText(&lcd_base, comp_name, 0, 1);
 }
-void lcd_comp_selected(){
+void lcd_comp_selected(void){
     lcdSetText(&lcd_base, "Comp Selected...", 0, 0);
 }
-void lcd_comp_not_found(){
+void lcd_comp_not_found(void){
     lcdClear(&lcd_base);
     lcdSetText(&lcd_base, "Comp not found..", 0, 0);
     lcdSetText(&lcd_base, "Please reset...", 0, 1);
 }
-void lcd_reset_timer(){
+void lcd_reset_timer(void){
     lcdClear(&lcd_base);
     lcdSetText(&lcd_base, "Plz reset timer!", 0, 0);
 }
-void lcd_duplicated_judge(){
+void lcd_duplicated_judge(void){
     lcdClear(&lcd_base);
     lcdSetText(&lcd_base, "You are judge...", 0, 0);
 }
@@ -470,7 +470,7 @@ void lcd_record_info(char *record, char *round){
     lcdSetText(&lcd_base, record, 0, 0);
     lcdSetText(&lcd_base, round, 0, 1);
 }
-void lcd_dnf(){
+void lcd_dnf(void){
     lcdClear(&lcd_base);
     lcdSetText(&lcd_base, "Stop! That's DNF", 0, 0);
 }
@@ -481,9 +481,9 @@ void lcd_inspection(char *inspection){
 void lcd_inspection_alert(char *alert){
     lcdSetText(&lcd_base, alert, 13, 1);
 }
-void lcd_timer_running(){
+void lcd_timer_running(void){
     lcdSetText(&lcd_base, "Solving...      ", 0, 0);
 }
-void lcd_timer_stopped(){
+void lcd_timer_stopped(void){
     lcdSetText(&lcd_base, "Record          ", 0, 0);
 }

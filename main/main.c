@@ -6,6 +6,6 @@
 #include "fatfs_custom.h"
 
 void app_main(void){
-    mount_flash_fatfs();
+    fatfs_custom_mount();
     wifi_init_sta();
 }

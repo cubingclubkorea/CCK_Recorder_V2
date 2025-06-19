@@ -1,7 +1,13 @@
+ #include "rc522_custom.h"
+ 
  #include <stdio.h>
  #include <string.h>
+
+ #include "driver/rc522_spi.h"
+ #include "rc522.h"
+ #include "rc522_picc.h"
+
  #include "esp_log.h"
- #include "rc522_custom.h"
 
 #define RC522_SPI_BUS_GPIO_MISO    (19)
 #define RC522_SPI_BUS_GPIO_MOSI    (23)
@@ -9,8 +15,7 @@
 #define RC522_SPI_SCANNER_GPIO_SDA (5)
 #define RC522_SCANNER_GPIO_RST     (22)
 
-#define UID_BUFFER_SIZE 30
-extern char uid_buffer[];
+char rc522_custom_uid_buffer[RC522_CUSTOM_UID_BUFFER_SIZE] = {};
 
 static rc522_spi_config_t driver_config = {
     .host_id = SPI3_HOST,
@@ -34,10 +39,10 @@ static void on_picc_state_changed(void *arg, esp_event_base_t base, int32_t even
     rc522_picc_t *picc = event->picc;
 
     if (picc->state == RC522_PICC_STATE_ACTIVE) {
-        rc522_picc_uid_to_str(&picc->uid, uid_buffer, UID_BUFFER_SIZE);
+        rc522_picc_uid_to_str(&picc->uid, rc522_custom_uid_buffer, RC522_CUSTOM_UID_BUFFER_SIZE);
     }
     else if (picc->state == RC522_PICC_STATE_IDLE && event->old_state >= RC522_PICC_STATE_ACTIVE) {
-        memset(uid_buffer, 0, UID_BUFFER_SIZE);
+        memset(rc522_custom_uid_buffer, 0, RC522_CUSTOM_UID_BUFFER_SIZE);
     }
 }
 

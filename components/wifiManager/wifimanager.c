@@ -23,7 +23,7 @@
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1
 
-const char *base_path= "/spiflash";
+static const char *base_path= "/spiflash";
 
 static EventGroupHandle_t s_wifi_event_group;
 static const char *TAG = "WIFI_MANAGER";

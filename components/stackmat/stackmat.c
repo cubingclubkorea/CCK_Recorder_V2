@@ -1,6 +1,8 @@
 #include "stackmat.h"
 #include "esp_log.h"
 
+#include "driver/uart.h"
+
 #if CONFIG_IDF_TARGET_ESP32
 #define RXD2_PIN GPIO_NUM_16
 
@@ -12,10 +14,10 @@
 
 #endif
 
-StackmatTimer stackmatTimer;
-char data[9];
+StackmatTimer stackmatTimer={};
+char data[9]={};
 
-void stackmat_init()
+void stackmat_init(void)
 {
     // Initialize UART for Stackmat timer communication
     uart_config_t uart_config = {
@@ -28,7 +30,7 @@ void stackmat_init()
     };
 
     // Install UART driver
-    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_2, RX_BUFFER_SIZE, 0, 0, NULL, 0));
+    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_2, STACKMAT_RX_BUFFER_SIZE, 0, 0, NULL, 0));
     ESP_ERROR_CHECK(uart_param_config(UART_NUM_2, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(UART_NUM_2, UART_PIN_NO_CHANGE, RXD2_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
     xTaskCreate(stackmat_task, "stackmat_task", 2048, NULL, 3, NULL);
@@ -50,27 +52,13 @@ static void stackmat_get_uart(char *buffer, size_t buffer_size)
     ESP_LOGI("Stackmat", "Received data: %s", buffer);
 }
 
-static StackmatTimerState to_stackmat_state(char c)
-{
-    switch (c) {
-        case 'I': return ST_Reset;
-        case ' ': return ST_Running;
-        case 'L': return ST_LeftHandOnTimer;
-        case 'R': return ST_RightHandOnTimer;
-        case 'C': return ST_BothHandsOnTimer;
-        case 'A': return ST_ReadyToStart;
-        case 'S': return ST_Stopped;
-        default:  return ST_Invalid;
-    }
-}
-
-uint32_t stackmat_get_total_time()
+uint32_t stackmat_get_total_time(void)
 {
     uint32_t totalTime = (stackmatTimer.minute * 60 + stackmatTimer.second) * 1000 + stackmatTimer.mill;
     return totalTime;
 }
 
-uint8_t stackmat_get_time()
+uint8_t stackmat_get_time(void)
 {
     
     stackmat_get_uart(data, sizeof(data));
@@ -85,7 +73,7 @@ uint8_t stackmat_get_time()
         return 1; // Checksum error
     }
     // Parse the received data
-    stackmatTimer.state = to_stackmat_state(data[0]);
+    stackmatTimer.state = data[0];
     stackmatTimer.minute = (data[1] - '0') ;
     stackmatTimer.second = (data[2] - '0') * 10 + (data[3] - '0');
     stackmatTimer.mill = (data[4] - '0') * 100 + (data[5] - '0') * 10 + (data[6] - '0');
@@ -102,6 +90,6 @@ void stackmat_task(void *arg)
 {
     while (1) {
         stackmat_get_time();
-        vTaskDelay(pdMS_TO_TICKS(50)); // Delay for 10ms before the next read
+        vTaskDelay(pdMS_TO_TICKS(50)); // Delay for 50ms before the next read
     }
 }
