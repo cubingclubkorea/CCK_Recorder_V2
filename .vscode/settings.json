@@ -27,6 +27,7 @@
         "uart.h": "c",
         "sys.h": "c",
         "rc522.h": "c",
-        "string.h": "c"
+        "string.h": "c",
+        "stackmat.h": "c"
     }
 }
