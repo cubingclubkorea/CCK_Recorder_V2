@@ -4,6 +4,7 @@
 #include "freertos/task.h"
 #include "wifimanager.h"
 #include "fatfs_custom.h"
+#include "esp_log.h"
 
 void app_main(void){
     fatfs_custom_mount();
