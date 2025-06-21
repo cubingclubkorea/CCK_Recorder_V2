@@ -15,6 +15,7 @@
 #endif
 
 StackmatTimer stackmatTimer={};
+RecordTime baseRecordTime={};
 char data[9]={};
 
 void stackmat_init(void)
@@ -80,6 +81,11 @@ uint8_t stackmat_get_time(void)
     // Validate the timer state(If the timer does not support Stopped)
     if(stackmat_get_total_time() > 0 && stackmatTimer.state==ST_Reset){
         stackmatTimer.state = ST_Stopped; // Reset state to stopped if timer was reset
+    }
+    if(stackmatTimer.state==ST_Stopped){
+        baseRecordTime.minute=stackmatTimer.minute;
+        baseRecordTime.second=stackmatTimer.second;
+        baseRecordTime.mill=stackmatTimer.mill;
     }
     ESP_LOGI("Stackmat", "State: %c, Time: %02d:%02d.%03d", stackmatTimer.state, stackmatTimer.minute, stackmatTimer.second, stackmatTimer.mill);
 

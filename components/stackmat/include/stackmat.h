@@ -26,7 +26,15 @@ typedef struct {
     uint8_t checksum;
 } StackmatTimer;
 
+typedef struct {
+    uint8_t minute;
+    uint8_t second;
+    int16_t mill;
+} RecordTime;
+
 extern StackmatTimer stackmatTimer;
+extern RecordTime recordTime;
+extern RecordTime baseRecordTime;
 
 void stackmat_init(void);
 
