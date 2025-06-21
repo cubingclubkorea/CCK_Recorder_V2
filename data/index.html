@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+	<title>CCK Recorder</title>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="icon" type="image/png" href="/images/icons/favicon.png"/>
+	<link rel="stylesheet" type="text/css" href="/css/main.css">
+</head>
+<body>
+	<div class="limiter">
+		<div class="container-login100">
+			<div class="wrap-login100">
+				<form class="login100-form validate-form" action="/" method="POST">
+					<span class="login100-form-title p-b-26">
+						<img src="images/icons/favicon.png" alt="CCK Recorder Logo" class="logo">
+						CCK Recorder
+					</span>
+					<span class="login100-form-title2 p-t-0">
+						WiFi Configuration
+					</span>
+					<div class="wrap-input100">
+                        <select class="input100" id="list" name="list" onchange="updateSsid()">
+							<option value="" disabled selected>Select WiFi</option>
+                            {{WIFI_LIST}} <!-- Wi-Fi 목록이 여기로 삽입됨 -->
+                        </select>
+                        <span class="focus-input100" data-placeholder="WiFi List"></span>
+                    </div>
+					<div class="wrap-input100 validate-input">
+						<input class="input100" type="text" id="ssid" name="ssid">
+						<span class="focus-input100" data-placeholder="SSID"></span>
+					</div>
+
+					<div class="wrap-input100">
+						<span class="btn-show-pass">
+							<i class="zmdi zmdi-eye"></i>
+						</span>
+						<input class="input100" type="password" id="pass" name="pass">
+						<span class="focus-input100" data-placeholder="Password"></span>
+					</div>
+					<div class="container-login100-form-btn">
+						<div class="wrap-login100-form-btn">
+							<div class="login100-form-bgbtn"></div>
+							<button class="login100-form-btn" type="submit" value="submit">
+								Connect
+							</button>
+						</div>
+					</div>
+				</form>
+			</div>
+		</div>
+	</div>
+	<script src="/js/main.js"></script>
+</body>
+</html>

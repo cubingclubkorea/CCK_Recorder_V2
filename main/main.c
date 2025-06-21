@@ -1,9 +1,12 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
- #include "freertos/timers.h"
- #include "freertos/task.h"
-#include "stackmat.h"
+#include "freertos/timers.h"
+#include "freertos/task.h"
+#include "wifimanager.h"
+#include "fatfs_custom.h"
+#include "esp_log.h"
 
 void app_main(void){
-    stackmat_init();
+    fatfs_custom_mount();
+    wifi_init_sta();
 }

@@ -15,7 +15,7 @@
 /* LCD Error */
 typedef int lcd_err_t;      /*!< LCD error type */
 
-#define LCD_FAIL            -1  /*!< LCD fail error */
+#define LCD_FAIL            (-1)  /*!< LCD fail error */
 #define LCD_OK               0  /*!< LCD success    */
 
 
@@ -68,33 +68,33 @@ void lcdFree(lcd_t * const lcd);
 
 void assert_lcd(lcd_err_t lcd_error);
 
-void lcd_wait_connect();
-void lcd_connected_wifi();
-void lcd_not_connected_wifi();
-void lcd_disconnected_wifi();
+void lcd_wait_connect(void);
+void lcd_connected_wifi(void);
+void lcd_not_connected_wifi(void);
+void lcd_disconnected_wifi(void);
 void lcd_wait_card(char *type);
 void lcd_judge(char *name);
-void lcd_scanned();
-void lcd_not_registered();
-void lcd_not_registered_delegate();
-void lcd_waiting_for_card();
+void lcd_scanned(void);
+void lcd_not_registered(void);
+void lcd_not_registered_delegate(void);
+void lcd_waiting_for_card(void);
 void lcd_print_second(char *time);
-void lcd_uploaded();
+void lcd_uploaded(void);
 void lcd_bwpa(char *bpa, char *wpa);
 void lcd_sinavg(char *single, char *average);
-void lcd_not_matched();
-void lcd_com_error();
-void lcd_which_comp();
-void lcd_comp_selected();
-void lcd_comp_not_found();
-void lcd_reset_timer();
-void lcd_duplicated_judge();
+void lcd_not_matched(void);
+void lcd_com_error(void);
+void lcd_which_comp(char *comp_name);
+void lcd_comp_selected(void);
+void lcd_comp_not_found(void);
+void lcd_reset_timer(void);
+void lcd_duplicated_judge(void);
 void lcd_record_info(char *record, char *round);
-void lcd_dnf();
+void lcd_dnf(void);
 void lcd_inspection(char *inspection);
 void lcd_inspection_alert(char *alert);
-void lcd_timer_running();
-void lcd_timer_stopped();
+void lcd_timer_running(void);
+void lcd_timer_stopped(void);
 
 
 #endif

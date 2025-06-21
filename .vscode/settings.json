@@ -22,6 +22,11 @@
         "utility": "c",
         "compare": "c",
         "iosfwd": "cpp",
-        "xlocbuf": "cpp"
+        "xlocbuf": "cpp",
+        "gpio.h": "c",
+        "uart.h": "c",
+        "sys.h": "c",
+        "rc522.h": "c",
+        "string.h": "c"
     }
 }

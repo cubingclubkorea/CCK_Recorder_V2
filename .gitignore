@@ -1,3 +1,9 @@
 build/
 sdkconfig
 sdkconfig.old
+nvs_custom.csv
+nvs_custom.bin
+nvs_flash.*
+fatfs.img
+fatfs_make.*
+fatfs_upload.*
