@@ -30,6 +30,7 @@
         "string.h": "c",
         "stackmat.h": "c",
         "esp_log.h": "c",
-        "button_event.h": "c"
+        "button_event.h": "c",
+        "https_event.h": "c"
     }
 }
