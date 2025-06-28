@@ -13,4 +13,8 @@ void app_main(void){
     https_event_init();
     https_event_login();
     https_event_get_comp();
+    https_event_get_player_info("E40CF903", player_judge);
+    https_event_get_player_info("33F55B36", player_player);
+    https_event_get_record();
+    https_event_update_record(12.34);
 }

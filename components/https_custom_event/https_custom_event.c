@@ -46,6 +46,12 @@ static api_auth_t api_auth = {
     .api_pass = "",
 };
 
+static comp_info_t *comp_info_list;
+comp_info_t comp_info={};
+judge_info_t judge_info={};
+player_info_t player_info={};
+record_info_t record_info={};
+
 esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 {
     switch(evt->event_id) {
@@ -64,7 +70,6 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
         case HTTP_EVENT_ON_DATA:
             if (evt->data) {
                 strncat((char *)evt->user_data, (char *)evt->data, evt->data_len);
-                ESP_LOGI(TAG, "Received chunk: %s", (char *)evt->data);
             }
             ESP_LOGD(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
             break;
@@ -158,12 +163,11 @@ void https_event_login(void){
     esp_err_t err = esp_http_client_perform(client);
     if (err == ESP_OK) {
         int status = esp_http_client_get_status_code(client);
-        ESP_LOGI(TAG, "HTTP POST Status = %d", status);
+        ESP_LOGI(TAG, "HTTP Login Status = %d", status);
         if(status==200){
             cJSON *json=cJSON_Parse(local_response_buffer);
             snprintf(API_Token, sizeof(API_Token), "Bearer %s", cJSON_GetObjectItem(json, "token")->valuestring);
             cJSON_Delete(json);
-            local_response_buffer[0] = '\0'; // Clear the response buffer
         }
         else{
             ESP_LOGE(TAG, "Login failed with status: %d", status);
@@ -172,6 +176,7 @@ void https_event_login(void){
     } else {
         ESP_LOGE(TAG, "HTTP GET request failed: %s", esp_err_to_name(err));
     }
+    memset(local_response_buffer, 0, sizeof(local_response_buffer));
     free(json_str); // Free the JSON string after use
 }
 
@@ -184,12 +189,159 @@ void https_event_get_comp(void){
     esp_err_t err = esp_http_client_perform(client);
     if (err == ESP_OK) {
         int status = esp_http_client_get_status_code(client);
-        ESP_LOGI(TAG, "HTTP GET Status = %d", status);
-        cJSON *json=cJSON_Parse(local_response_buffer);
-        ESP_LOGI(TAG, "Parsed JSON: %s", cJSON_Print(json));
-        cJSON_Delete(json);
-        local_response_buffer[0] = '\0'; // Clear the response buffer
+        ESP_LOGI(TAG, "HTTP Get Competition Status = %d", status);
+        if(status==200){
+            cJSON *json=cJSON_Parse(local_response_buffer);
+            int count = cJSON_GetArraySize(json);
+            if (count == 0) {
+                ESP_LOGE(TAG, "No competition found");
+                cJSON_Delete(json);
+                return;
+            }
+            else if (count == 1) {
+                cJSON *item = cJSON_GetArrayItem(json, 0);
+                comp_info.idx = cJSON_GetObjectItem(item, "idx")->valueint;
+                strncpy((char *)comp_info.comp_name, cJSON_GetObjectItem(item, "compName")->valuestring, sizeof(comp_info.comp_name) - 1);
+                ESP_LOGI(TAG, "Competition found: %s", comp_info.comp_name);
+            }
+            else{
+                comp_info_list = malloc(count * sizeof(comp_info_t));
+                if (comp_info_list == NULL) {
+                    ESP_LOGE(TAG, "Memory allocation failed for competition list");
+                    cJSON_Delete(json);
+                    return;
+                }
+                for (int i = 0; i < count; i++) {
+                    cJSON *item = cJSON_GetArrayItem(json, i);
+                    comp_info_list[i].idx = cJSON_GetObjectItem(item, "idx")->valueint;
+                    strncpy((char *)comp_info_list[i].comp_name, cJSON_GetObjectItem(item, "compName")->valuestring, sizeof(comp_info_list[i].comp_name) - 1);
+                    ESP_LOGI(TAG, "Competition found: %s", comp_info_list[i].comp_name);
+                }
+            }
+            cJSON_Delete(json);
+        }
+        else{
+            ESP_LOGE(TAG, "Get Competition failed with status: %d", status);
+            ESP_LOGE(TAG, "Response: %s", local_response_buffer);
+        }
     } else {
-        ESP_LOGE(TAG, "HTTP GET request failed: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "HTTP Get Competition request failed: %s", esp_err_to_name(err));
     }
+    memset(local_response_buffer, 0, sizeof(local_response_buffer));
+}
+
+void https_event_get_player_info(char *player_uid, player_type_t player_type){
+    char player_url[SERVER_URL_MAX_SZ+sizeof("/recorder/info")+9] = {0};
+    snprintf(player_url, sizeof(player_url), "%s/recorder/info/%s", api_url, player_uid);
+
+    esp_http_client_set_url(client, player_url);
+    esp_http_client_set_method(client, HTTP_METHOD_GET);
+
+    esp_err_t err = esp_http_client_perform(client);
+    if (err == ESP_OK) {
+        int status = esp_http_client_get_status_code(client);
+        ESP_LOGI(TAG, "HTTP Get Player Status = %d", status);
+        if(status==200){
+            cJSON *json=cJSON_Parse(local_response_buffer);
+            switch (player_type) {
+                case player_judge:
+                    strncpy((char *)judge_info.judge_name, cJSON_GetObjectItem(json, "enName")->valuestring, sizeof(judge_info.judge_name) - 1);
+                    strncpy((char *)judge_info.judge_email, cJSON_GetObjectItem(json, "email")->valuestring, sizeof(judge_info.judge_email) - 1);
+                    ESP_LOGI(TAG, "Judge info = %s", judge_info.judge_name);
+                    break;
+                case player_player:
+                    strncpy((char *)player_info.player_name, cJSON_GetObjectItem(json, "enName")->valuestring, sizeof(player_info.player_name) - 1);
+                    strncpy((char *)player_info.player_email, cJSON_GetObjectItem(json, "email")->valuestring, sizeof(player_info.player_email) - 1);
+                    strncpy((char *)player_info.state, cJSON_GetObjectItem(json, "state")->valuestring, sizeof(player_info.state) - 1);
+                    player_info.valid = 0;
+                    ESP_LOGI(TAG, "Player info = %s, %s", player_info.player_name, player_info.state);
+                    break;
+                case player_check:
+                    if(strcmp((char *)player_info.player_email, cJSON_GetObjectItem(json, "email")->valuestring) == 0){
+                        player_info.valid = 1;
+                        ESP_LOGI(TAG, "Player matched");
+                    }
+                    else{
+                        player_info.valid = 0;
+                        ESP_LOGI(TAG, "Player not matched");
+                    }
+                    break;
+            }
+            cJSON_Delete(json);
+        }
+        else{
+            ESP_LOGE(TAG, "Get Player failed with status: %d", status);
+            ESP_LOGE(TAG, "Response: %s", local_response_buffer);
+        }
+    } else {
+        ESP_LOGE(TAG, "HTTP Get Player request failed: %s", esp_err_to_name(err));
+    }
+    memset(local_response_buffer, 0, sizeof(local_response_buffer));
+}
+
+void https_event_get_record(void){
+    char get_record_url[SERVER_URL_MAX_SZ+sizeof("/recorder/record")+1+64+1] = {0};
+    snprintf(get_record_url, sizeof(get_record_url), "%s/recorder/record/%s/%ld", api_url, player_info.player_email, comp_info.idx);
+    esp_http_client_set_url(client, get_record_url);
+    esp_http_client_set_method(client, HTTP_METHOD_GET);
+    esp_http_client_set_header(client, "Authorization", API_Token);
+
+    esp_err_t err = esp_http_client_perform(client);
+    if (err == ESP_OK) {
+        int status = esp_http_client_get_status_code(client);
+        ESP_LOGI(TAG, "HTTP Get Record Status = %d", status);
+        if(status==200){
+            cJSON *json=cJSON_Parse(local_response_buffer);
+            record_info.attempt_idx = cJSON_GetObjectItem(json, "attemptIdx")->valueint;
+            strncpy((char *)record_info.player_name, cJSON_GetObjectItem(json, "name")->valuestring, sizeof(record_info.player_name) - 1);
+            strncpy((char *)record_info.round_name, cJSON_GetObjectItem(json, "roundName")->valuestring, sizeof(record_info.round_name) - 1);
+            record_info.seq = cJSON_GetObjectItem(json, "seq")->valueint;
+            record_info.extraNum = cJSON_GetObjectItem(json, "extraNum")->valueint;
+            ESP_LOGI(TAG, "Record found: %s-%d, %s", record_info.round_name, record_info.seq, record_info.player_name);
+            cJSON_Delete(json);
+        }
+        else{
+            ESP_LOGE(TAG, "Get Record failed with status: %d", status);
+            ESP_LOGE(TAG, "Response: %s", local_response_buffer);
+        }
+    } else {
+        ESP_LOGE(TAG, "HTTP Get Record request failed: %s", esp_err_to_name(err));
+    }
+    memset(local_response_buffer, 0, sizeof(local_response_buffer));
+}
+
+void https_event_update_record(double record){
+    char update_record_url[SERVER_URL_MAX_SZ+sizeof("/recorder/record")+1] = {0};
+    snprintf(update_record_url, sizeof(update_record_url), "%s/recorder/record", api_url);
+    esp_http_client_set_url(client, update_record_url);
+    esp_http_client_set_method(client, HTTP_METHOD_POST);
+    esp_http_client_set_header(client, "Authorization", API_Token);
+    esp_http_client_set_header(client, "Content-Type", "application/json");
+
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddNumberToObject(json, "attemptIdx", record_info.attempt_idx);
+    cJSON_AddStringToObject(json, "judgeEmail", (const char *)judge_info.judge_email);
+    cJSON_AddNumberToObject(json, "record", record);
+
+    char *json_str = cJSON_PrintUnformatted(json);
+    cJSON_Delete(json);
+
+    esp_http_client_set_post_field(client, json_str, strlen(json_str));
+
+    esp_err_t err = esp_http_client_perform(client);
+    if (err == ESP_OK) {
+        int status = esp_http_client_get_status_code(client);
+        ESP_LOGI(TAG, "HTTP Update Record Status = %d", status);
+        if(status==200){
+            ESP_LOGI(TAG, "Record updated successfully");
+        }
+        else{
+            ESP_LOGE(TAG, "Update Record failed with status: %d", status);
+            ESP_LOGE(TAG, "Response: %s", local_response_buffer);
+        }
+    } else {
+        ESP_LOGE(TAG, "HTTP Update Record request failed: %s", esp_err_to_name(err));
+    }
+    memset(local_response_buffer, 0, sizeof(local_response_buffer));
+    free(json_str); // Free the JSON string after use
 }
