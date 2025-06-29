@@ -11,6 +11,7 @@
 #define _ESP_LCD_H_
 
 #include "driver/gpio.h"
+#include <stdint.h>
 
 /* LCD Error */
 typedef int lcd_err_t;      /*!< LCD error type */
@@ -52,6 +53,8 @@ typedef struct
     lcd_state_t state;              /*!< LCD state  */
 } lcd_t;
 
+extern lcd_t lcd_base; /*!< Global LCD object */
+
 void lcdDefault(lcd_t *const lcd);
 
 void lcdInit(lcd_t *const lcd);
@@ -79,7 +82,7 @@ void lcd_not_registered(void);
 void lcd_not_registered_delegate(void);
 void lcd_waiting_for_card(void);
 void lcd_print_second(char *time);
-void lcd_uploaded(void);
+void lcd_uploaded(uint8_t seq);
 void lcd_bwpa(char *bpa, char *wpa);
 void lcd_sinavg(char *single, char *average);
 void lcd_not_matched(void);

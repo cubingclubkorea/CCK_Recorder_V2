@@ -18,6 +18,8 @@ StackmatTimer stackmatTimer={};
 RecordTime baseRecordTime={};
 char data[9]={};
 
+static TaskHandle_t stackmat_task_handle = NULL;
+
 void stackmat_init(void)
 {
     // Initialize UART for Stackmat timer communication
@@ -97,5 +99,32 @@ void stackmat_task(void *arg)
     while (1) {
         stackmat_get_time();
         vTaskDelay(pdMS_TO_TICKS(50)); // Delay for 50ms before the next read
+    }
+}
+
+void stackmat_task_start(void)
+{
+    if (stackmat_task_handle == NULL)
+    {
+        xTaskCreate(stackmat_task, "stackmat_task", 2048, NULL, 3, &stackmat_task_handle);
+        ESP_LOGI("Stackmat", "stackmat_task started");
+    }
+    else
+    {
+        ESP_LOGW("Stackmat", "stackmat_task is already running");
+    }
+}
+
+void stackmat_task_stop(void)
+{
+    if (stackmat_task_handle != NULL)
+    {
+        vTaskDelete(stackmat_task_handle);
+        stackmat_task_handle = NULL;
+        ESP_LOGI("Stackmat", "stackmat_task stopped");
+    }
+    else
+    {
+        ESP_LOGW("Stackmat", "stackmat_task is not running");
     }
 }

@@ -1,9 +1,12 @@
 #ifndef _RC522_CUSTOM_H_
 #define _RC522_CUSTOM_H_
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+
 #define RC522_CUSTOM_UID_BUFFER_SIZE 30
 
-extern char rc522_custom_uid_buffer[RC522_CUSTOM_UID_BUFFER_SIZE];
+extern QueueHandle_t rc522_custom_queue;
 
 void rc522_custom_init(void);
 

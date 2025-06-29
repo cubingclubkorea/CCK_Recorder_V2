@@ -30,6 +30,7 @@ typedef struct {
     uint8_t minute;
     uint8_t second;
     int16_t mill;
+    uint8_t penalty_count;
 } RecordTime;
 
 extern StackmatTimer stackmatTimer;
@@ -43,5 +44,9 @@ uint32_t stackmat_get_total_time(void);
 uint8_t stackmat_get_time(void);
 
 void stackmat_task(void *arg);
+
+void stackmat_task_start(void);
+
+void stackmat_task_stop(void);
 
 #endif

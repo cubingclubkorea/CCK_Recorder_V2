@@ -46,7 +46,7 @@
 
  #endif
  
- lcd_t lcd_base;
+ lcd_t lcd_base={};;
 
  /**
   * @brief Trigger LCD enable pin
@@ -419,10 +419,12 @@ void lcd_waiting_for_card(void){
 void lcd_print_second(char *time){
     lcdSetText(&lcd_base, time, 0, 1);
 }
-void lcd_uploaded(void){
+void lcd_uploaded(uint8_t seq){
+    char message[17];
+    snprintf(message, sizeof(message), "Try %d complete", seq);
     lcdClear(&lcd_base);
     lcdSetText(&lcd_base, "Uploaded!", 0, 0);
-    lcdSetText(&lcd_base, "Enjoy the Comp!", 0, 1);
+    lcdSetText(&lcd_base, (char *)message, 0, 1);
 }
 void lcd_bwpa(char *bpa, char *wpa){
     lcdClear(&lcd_base);
@@ -450,7 +452,7 @@ void lcd_which_comp(char *comp_name){
     lcdSetText(&lcd_base, comp_name, 0, 1);
 }
 void lcd_comp_selected(void){
-    lcdSetText(&lcd_base, "Comp Selected...", 0, 0);
+    lcdSetText(&lcd_base, "Comp Selected", 0, 0);
 }
 void lcd_comp_not_found(void){
     lcdClear(&lcd_base);

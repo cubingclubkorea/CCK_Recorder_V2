@@ -35,6 +35,11 @@
     "esp_log.h": "c",
     "button_event.h": "c",
     "https_event.h": "c",
-    "algorithm": "c"
+    "algorithm": "c",
+    "freertos.h": "c",
+    "esp_lcd.h": "c",
+    "task_integrated.h": "c",
+    "wifimanager.h": "c",
+    "rc522_spi.h": "c"
   }
 }
