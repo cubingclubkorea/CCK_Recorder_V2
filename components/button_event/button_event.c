@@ -44,6 +44,11 @@ void button_event_register(gpio_num_t button, gpio_isr_t handler, void *arg)
     }
 }
 
+void button_event_unregister(gpio_num_t button)
+{
+    ESP_ERROR_CHECK(gpio_isr_handler_remove(button));
+}
+
 void IRAM_ATTR button_event_send(void *arg){
     button_event_type event_type=(button_event_type) arg;
     xQueueSendFromISR(eventQueue, &event_type, NULL);

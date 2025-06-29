@@ -28,6 +28,8 @@
 #include "esp_http_client.h"
 #include "cJSON.h"
 
+#include "button_event.h"
+
 #define MAX_HTTP_RECV_BUFFER 2048
 #define MAX_HTTP_OUTPUT_BUFFER 8192
 
@@ -47,6 +49,8 @@ static api_auth_t api_auth = {
 };
 
 static comp_info_t *comp_info_list;
+static int comp_info_list_size = 0;
+
 comp_info_t comp_info={};
 judge_info_t judge_info={};
 player_info_t player_info={};
@@ -180,6 +184,46 @@ void https_event_login(void){
     free(json_str); // Free the JSON string after use
 }
 
+void IRAM_ATTR comp_next(void *arg){
+    int *index = (int *)arg;
+    (*index)++;
+    if(*index>=comp_info_list_size){
+        *index=0;
+    }
+};
+
+void IRAM_ATTR comp_back(void *arg){
+    int *index = (int *)arg;
+    (*index)--;
+    if(*index<0){
+        *index=comp_info_list_size-1;
+    }
+};
+
+void IRAM_ATTR comp_select(void *arg){
+    int *index = (int *)arg;
+    if(*index<0 || *index>=comp_info_list_size){
+        return;
+    }
+    comp_info.idx = comp_info_list[*index].idx;
+    strncpy((char *)comp_info.comp_name, (char *)comp_info_list[*index].comp_name, sizeof(comp_info.comp_name) - 1);
+    button_event_unregister(BUTTON1);
+    button_event_unregister(BUTTON2);
+    button_event_unregister(BUTTON3);
+}
+
+void https_event_select_comp(void){
+    int index=0;
+    button_event_register(BUTTON1, comp_next, &index);
+    button_event_register(BUTTON2, comp_back, &index);
+    button_event_register(BUTTON3, comp_select, &index);
+    while(comp_info.idx==NULL){
+        ESP_LOGI(TAG, "Index: %d", index);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+    ESP_LOGI(TAG, "Selected Competition: %s", comp_info.comp_name);
+}
+
 void https_event_get_comp(void){
     char get_comp_url[SERVER_URL_MAX_SZ+sizeof("/recorder/comp")+1] = {0};
     snprintf(get_comp_url, sizeof(get_comp_url), "%s/recorder/comp", api_url);
@@ -192,31 +236,32 @@ void https_event_get_comp(void){
         ESP_LOGI(TAG, "HTTP Get Competition Status = %d", status);
         if(status==200){
             cJSON *json=cJSON_Parse(local_response_buffer);
-            int count = cJSON_GetArraySize(json);
-            if (count == 0) {
+            comp_info_list_size = cJSON_GetArraySize(json);
+            if (comp_info_list_size == 0) {
                 ESP_LOGE(TAG, "No competition found");
                 cJSON_Delete(json);
                 return;
             }
-            else if (count == 1) {
+            else if (comp_info_list_size == 1) {
                 cJSON *item = cJSON_GetArrayItem(json, 0);
                 comp_info.idx = cJSON_GetObjectItem(item, "idx")->valueint;
                 strncpy((char *)comp_info.comp_name, cJSON_GetObjectItem(item, "compName")->valuestring, sizeof(comp_info.comp_name) - 1);
                 ESP_LOGI(TAG, "Competition found: %s", comp_info.comp_name);
             }
             else{
-                comp_info_list = malloc(count * sizeof(comp_info_t));
+                comp_info_list = malloc(comp_info_list_size * sizeof(comp_info_t));
                 if (comp_info_list == NULL) {
                     ESP_LOGE(TAG, "Memory allocation failed for competition list");
                     cJSON_Delete(json);
                     return;
                 }
-                for (int i = 0; i < count; i++) {
+                for (int i = 0; i < comp_info_list_size; i++) {
                     cJSON *item = cJSON_GetArrayItem(json, i);
                     comp_info_list[i].idx = cJSON_GetObjectItem(item, "idx")->valueint;
                     strncpy((char *)comp_info_list[i].comp_name, cJSON_GetObjectItem(item, "compName")->valuestring, sizeof(comp_info_list[i].comp_name) - 1);
                     ESP_LOGI(TAG, "Competition found: %s", comp_info_list[i].comp_name);
                 }
+                https_event_select_comp(); // Register button events for competition selection
             }
             cJSON_Delete(json);
         }

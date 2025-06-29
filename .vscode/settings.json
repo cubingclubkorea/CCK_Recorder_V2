@@ -34,6 +34,7 @@
     "stackmat.h": "c",
     "esp_log.h": "c",
     "button_event.h": "c",
-    "https_event.h": "c"
+    "https_event.h": "c",
+    "algorithm": "c"
   }
 }
