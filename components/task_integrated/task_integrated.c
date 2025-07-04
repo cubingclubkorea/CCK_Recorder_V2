@@ -1,6 +1,9 @@
 #include "task_integrated.h"
+#include "driver/uart.h"
 
 static app_state_t app_state = APP_STATE_REGIST_PLAYER;
+
+StackmatTimer stackmatTimer = {};
 
 static void base_penalty_task(void){
     if(baseRecordTime.penalty_count > 0){
@@ -111,11 +114,12 @@ static void app_regist_player(void){
 }
 
 static void app_inspection(void){
-    stackmat_task_start();
+    uart_flush_input(UART_NUM_2);
     uint64_t start_time=esp_timer_get_time();
     uint64_t remaining_time;
     char inspection_buffer[17]={};
     while(1){
+        stackmat_get_time(&stackmatTimer);
         remaining_time = esp_timer_get_time()-start_time;
         if(stackmatTimer.state == ST_Running){
             if(remaining_time >= 15000000 && remaining_time < 17000000){
@@ -126,7 +130,6 @@ static void app_inspection(void){
         }
 
         if(remaining_time >= 17000000){
-            stackmat_task_stop();
             lcd_dnf();
             dnf_task();
             app_state = APP_STATE_TIMER_STOPPED;
@@ -152,15 +155,17 @@ static void app_timer_running(void){
     lcd_timer_running();
     char timer_buffer[17]={};
     while(1){
+        stackmat_get_time(&stackmatTimer);
         if(stackmatTimer.state == ST_Running){
             timer_format(timer_buffer, sizeof(timer_buffer));
             lcd_print_second(timer_buffer);
+            vTaskDelay(pdMS_TO_TICKS(10));
         }
         else if(stackmatTimer.state == ST_Stopped){
             app_state = APP_STATE_TIMER_STOPPED;
             break;
         }
-        else{
+        else if (stackmatTimer.state == ST_Reset || stackmatTimer.state == ST_Invalid) {
             lcd_com_error();
             break;
         }
@@ -168,7 +173,6 @@ static void app_timer_running(void){
 }
 
 static void app_timer_stopped(void){
-    stackmat_task_stop();
     lcd_timer_stopped();
     char record_buffer[17] = {};
     timer_format(record_buffer, sizeof(record_buffer));
@@ -243,6 +247,7 @@ void app_initiate(void){
     lcdDefault(&lcd_base);
     /* Initialize LCD */
     lcdInit(&lcd_base);
+    stackmat_init();
     rc522_custom_init();
     fatfs_custom_mount();
     wifi_init_sta();

@@ -3,7 +3,7 @@
 
 #include "driver/gpio.h"
 
-static const int STACKMAT_RX_BUFFER_SIZE = 1024; // Size of the receive buffer
+static const int STACKMAT_RX_BUFFER_SIZE = 256; // Size of the receive buffer
 
 static const int STACKMAT_TIMER_BAUD_RATE = 1200;
 
@@ -19,11 +19,11 @@ typedef enum {
 } StackmatTimerState;
 
 typedef struct {
-    StackmatTimerState state;
-    uint8_t minute;
-    uint8_t second;
-    uint16_t mill;
-    uint8_t checksum;
+    volatile StackmatTimerState state;
+    volatile uint8_t minute;
+    volatile uint8_t second;
+    volatile uint16_t mill;
+    volatile uint8_t checksum;
 } StackmatTimer;
 
 typedef struct {
@@ -33,20 +33,13 @@ typedef struct {
     uint8_t penalty_count;
 } RecordTime;
 
-extern StackmatTimer stackmatTimer;
 extern RecordTime recordTime;
 extern RecordTime baseRecordTime;
 
 void stackmat_init(void);
 
-uint32_t stackmat_get_total_time(void);
+uint32_t stackmat_get_total_time(StackmatTimer *stackmatTimer);
 
-uint8_t stackmat_get_time(void);
-
-void stackmat_task(void *arg);
-
-void stackmat_task_start(void);
-
-void stackmat_task_stop(void);
+uint8_t stackmat_get_time(StackmatTimer *stackmatTimer);
 
 #endif

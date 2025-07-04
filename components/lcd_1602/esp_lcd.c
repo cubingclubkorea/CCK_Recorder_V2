@@ -393,7 +393,7 @@ void lcd_disconnected_wifi(void){
 void lcd_wait_card(char *type){
     lcdClear(&lcd_base);
     char message[17];
-    snprintf(message, sizeof(message), "Waiting for %s", type);
+    snprintf(message, sizeof(message), "Wait for %s", type);
     lcdSetText(&lcd_base, "Please tag Card", 0, 0);
     lcdSetText(&lcd_base, message, 0, 1);
 }

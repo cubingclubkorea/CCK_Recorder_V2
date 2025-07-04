@@ -255,6 +255,7 @@ int8_t https_event_select_comp(void)
             comp_info.idx = comp_info_list[index].idx;
             strncpy((char *)comp_info.comp_name, (char *)comp_info_list[index].comp_name, sizeof(comp_info.comp_name) - 1);
             lcd_comp_selected();
+            vTaskDelay(pdMS_TO_TICKS(1000));
             ESP_LOGI(TAG, "Selected Competition: %s", comp_info.comp_name);
             return 0; // Exit the loop after selection
         }
@@ -303,6 +304,7 @@ int8_t https_event_get_comp(void)
                 lcd_print_second((char *)comp_info.comp_name);
                 cJSON_Delete(json);
                 memset(local_response_buffer, 0, sizeof(local_response_buffer));
+                vTaskDelay(pdMS_TO_TICKS(1000));
                 return 0;
             }
             else
@@ -433,6 +435,8 @@ int8_t https_event_get_record(void)
             cJSON *json = cJSON_Parse(local_response_buffer);
             if (json == NULL) {
                 ESP_LOGE(TAG, "Failed to parse record JSON");
+                memset(&player_info, 0, sizeof(player_info));
+                memset(&record_info, 0, sizeof(record_info));
                 memset(local_response_buffer, 0, sizeof(local_response_buffer));
                 return -1;
             }
@@ -448,6 +452,8 @@ int8_t https_event_get_record(void)
         }
         else if(status == 204){
             ESP_LOGE(TAG, "No record found for player");
+            memset(&player_info, 0, sizeof(player_info));
+            memset(&record_info, 0, sizeof(record_info));
             memset(local_response_buffer, 0, sizeof(local_response_buffer));
             return -2;
         }
@@ -455,6 +461,8 @@ int8_t https_event_get_record(void)
         {
             ESP_LOGE(TAG, "Get Record failed with status: %d", status);
             ESP_LOGE(TAG, "Response: %s", local_response_buffer);
+            memset(&player_info, 0, sizeof(player_info));
+            memset(&record_info, 0, sizeof(record_info));
             memset(local_response_buffer, 0, sizeof(local_response_buffer));
             return -1;
         }
@@ -462,6 +470,8 @@ int8_t https_event_get_record(void)
     else
     {
         ESP_LOGE(TAG, "HTTP Get Record request failed: %s", esp_err_to_name(err));
+        memset(&player_info, 0, sizeof(player_info));
+        memset(&record_info, 0, sizeof(record_info));
         return -1;
     }
 }
