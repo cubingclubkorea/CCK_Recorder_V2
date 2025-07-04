@@ -117,6 +117,10 @@ static void app_regist_player(void){
                     lcd_not_registered();
                     vTaskDelay(pdMS_TO_TICKS(1000));
                 }
+                else if(ret==-3){
+                    lcd_duplicated_judge();
+                    vTaskDelay(1000);
+                }
                 else{
                     lcd_com_error();
                     vTaskDelay(pdMS_TO_TICKS(1000));
