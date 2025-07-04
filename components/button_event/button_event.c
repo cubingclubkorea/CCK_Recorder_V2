@@ -107,7 +107,7 @@ void IRAM_ATTR button_event_send(void *arg){
 
 void IRAM_ATTR button_event_penalty(void *arg)
 {
-    if(recordTime.minute==0 && recordTime.second==0 &&recordTime.mill==-1){
+    if(recordTime.minute==0 && recordTime.second==-1 &&recordTime.mill==0){
         ESP_LOGW(TAG, "Penalty event not triggered. (reason: DNF)");
     }
     else{

@@ -23,10 +23,16 @@ static void penalty_task(void){
     }
 }
 
+static void base_dnf_task(void){
+    stackmatTimer.minute = 0;
+    stackmatTimer.second = -1;
+    stackmatTimer.mill = 0; // Set millisecond to -1 to indicate DNF
+}
+
 static void dnf_task(void){
     baseRecordTime.minute = 0;
-    baseRecordTime.second = 0;
-    baseRecordTime.mill = -1;
+    baseRecordTime.second = -1;
+    baseRecordTime.mill = 0;
     lcd_print_second("DNF             ");
 }
 
@@ -39,11 +45,15 @@ static void reset_task(void){
 
 
 static void inspection_format(char *buffer, size_t buffer_size, int insSec, int insMill){
-    snprintf(buffer, buffer_size, "%02d.%03d          ", insSec, insMill);
+    snprintf(buffer, buffer_size, "%02d.%03d           ", insSec, insMill);
 }
 
 static void timer_format(char *buffer, size_t buffer_size){
-    snprintf(buffer, buffer_size, "%d:%02d.%03d       ", stackmatTimer.minute, stackmatTimer.second, stackmatTimer.mill);
+    snprintf(buffer, buffer_size, "%d:%02d.%03d        ", stackmatTimer.minute, stackmatTimer.second, stackmatTimer.mill);
+}
+
+static void record_format(char *buffer, size_t buffer_size){
+    snprintf(buffer, buffer_size, "%d:%02d.%03d        ", baseRecordTime.minute, baseRecordTime.second, baseRecordTime.mill);
 }
 
 static void app_regist_judge(void){
@@ -72,9 +82,20 @@ static void app_regist_judge(void){
 }
 
 static void app_regist_player(void){
+    uart_flush_input(UART_NUM_2);
     rc522_custom_start();
     char player_uid[RC522_CUSTOM_UID_BUFFER_SIZE] = {0};
     while(1){
+        if(stackmat_get_time(&stackmatTimer)==2){
+            lcd_timer_disconnected();
+            vTaskDelay(pdMS_TO_TICKS(50));
+            continue;
+        }
+        if(stackmatTimer.state != ST_Reset){
+            lcd_reset_timer();
+            vTaskDelay(pdMS_TO_TICKS(50));
+            continue;
+        }
         lcd_wait_card("player");
         if(xQueueReceive(rc522_custom_queue, &player_uid, portMAX_DELAY)==pdTRUE){
             int8_t ret=https_event_get_player_info(player_uid, player_player);
@@ -119,7 +140,11 @@ static void app_inspection(void){
     uint64_t remaining_time;
     char inspection_buffer[17]={};
     while(1){
-        stackmat_get_time(&stackmatTimer);
+        if(stackmat_get_time(&stackmatTimer)==2){
+            lcd_timer_disconnected();
+            vTaskDelay(pdMS_TO_TICKS(50));
+            continue;
+        }
         remaining_time = esp_timer_get_time()-start_time;
         if(stackmatTimer.state == ST_Running){
             if(remaining_time >= 15000000 && remaining_time < 17000000){
@@ -155,7 +180,11 @@ static void app_timer_running(void){
     lcd_timer_running();
     char timer_buffer[17]={};
     while(1){
-        stackmat_get_time(&stackmatTimer);
+        if(stackmat_get_time(&stackmatTimer)==2){
+            lcd_timer_disconnected();
+            vTaskDelay(pdMS_TO_TICKS(50));
+            continue;
+        }
         if(stackmatTimer.state == ST_Running){
             timer_format(timer_buffer, sizeof(timer_buffer));
             lcd_print_second(timer_buffer);
@@ -163,6 +192,10 @@ static void app_timer_running(void){
         }
         else if(stackmatTimer.state == ST_Stopped){
             app_state = APP_STATE_TIMER_STOPPED;
+            baseRecordTime.minute = stackmatTimer.minute;
+            baseRecordTime.second = stackmatTimer.second;
+            baseRecordTime.mill = stackmatTimer.mill;
+            base_penalty_task();
             break;
         }
         else if (stackmatTimer.state == ST_Reset || stackmatTimer.state == ST_Invalid) {
@@ -173,27 +206,36 @@ static void app_timer_running(void){
 }
 
 static void app_timer_stopped(void){
-    lcd_timer_stopped();
     char record_buffer[17] = {};
-    timer_format(record_buffer, sizeof(record_buffer));
-    lcd_print_second(record_buffer);
-    base_penalty_task();
+    if(baseRecordTime.second < 0){
+        lcd_dnf();
+        dnf_task();
+    }
+    else{
+        lcd_timer_stopped();
+        record_format(record_buffer, sizeof(record_buffer));
+        lcd_print_second(record_buffer);
+    }
     while(1){
-        switch(button_checker()){
-            case 1:
-                app_state = APP_STATE_UPDATE_RECORD;
-                return;
-            case 2: // Penalty
+        uint8_t button_event = button_checker();
+        if(button_event==1){
+            app_state = APP_STATE_UPDATE_RECORD;
+            return;
+        }
+        else if(button_event==2){
+            if(baseRecordTime.second >= 0){
                 penalty_task();
-                timer_format(record_buffer, sizeof(record_buffer));
+                record_format(record_buffer, sizeof(record_buffer));
                 lcd_print_second(record_buffer);
-                break;
-            case 3: // DNF
-                dnf_task();
-                break;
-            case 4: // Reset
-                reset_task();
-                break;
+            }
+        }
+        else if(button_event==3){
+            dnf_task();
+        }
+        else if(button_event==4){
+            reset_task();
+            record_format(record_buffer, sizeof(record_buffer));
+            lcd_print_second(record_buffer);
         }
         vTaskDelay(pdMS_TO_TICKS(10));
     }

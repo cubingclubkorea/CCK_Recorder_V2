@@ -441,31 +441,31 @@ void lcd_sinavg(char *single, char *average){
     lcdSetText(&lcd_base, average, 9, 1);
 }
 void lcd_not_matched(void){
-    lcdSetText(&lcd_base, "Player not match", 0, 0);
+    lcdSetText(&lcd_base, "Player not match ", 0, 0);
 }
 void lcd_com_error(void){
-    lcdSetText(&lcd_base, "Something Error ", 0, 0);
+    lcdSetText(&lcd_base, "Something Error  ", 0, 0);
 }
 void lcd_which_comp(char *comp_name){
     lcdClear(&lcd_base);
-    lcdSetText(&lcd_base, "Which Comp?", 0, 0);
+    lcdSetText(&lcd_base, "Which Comp?      ", 0, 0);
     lcdSetText(&lcd_base, comp_name, 0, 1);
 }
 void lcd_comp_selected(void){
-    lcdSetText(&lcd_base, "Comp Selected", 0, 0);
+    lcdSetText(&lcd_base, "Comp Selected    ", 0, 0);
 }
 void lcd_comp_not_found(void){
     lcdClear(&lcd_base);
-    lcdSetText(&lcd_base, "Comp not found..", 0, 0);
-    lcdSetText(&lcd_base, "Please reset...", 0, 1);
+    lcdSetText(&lcd_base, "Comp not found.. ", 0, 0);
+    lcdSetText(&lcd_base, "Please reset...  ", 0, 1);
 }
 void lcd_reset_timer(void){
     lcdClear(&lcd_base);
-    lcdSetText(&lcd_base, "Plz reset timer!", 0, 0);
+    lcdSetText(&lcd_base, "Plz reset timer! ", 0, 0);
 }
 void lcd_duplicated_judge(void){
     lcdClear(&lcd_base);
-    lcdSetText(&lcd_base, "You are judge...", 0, 0);
+    lcdSetText(&lcd_base, "You are judge... ", 0, 0);
 }
 void lcd_record_info(char *record, char *round){
     lcdClear(&lcd_base);
@@ -474,18 +474,24 @@ void lcd_record_info(char *record, char *round){
 }
 void lcd_dnf(void){
     lcdClear(&lcd_base);
-    lcdSetText(&lcd_base, "Stop! That's DNF", 0, 0);
+    lcdSetText(&lcd_base, "Stop! That's DNF ", 0, 0);
 }
 void lcd_inspection(char *inspection){
-    lcdSetText(&lcd_base, "Inspection: ", 0, 0);
+    lcdSetText(&lcd_base, "Inspection:      ", 0, 0);
     lcdSetText(&lcd_base, inspection, 0, 1);
 }
 void lcd_inspection_alert(char *alert){
     lcdSetText(&lcd_base, alert, 13, 1);
 }
 void lcd_timer_running(void){
-    lcdSetText(&lcd_base, "Solving...      ", 0, 0);
+    lcdSetText(&lcd_base, "Solving...       ", 0, 0);
 }
 void lcd_timer_stopped(void){
-    lcdSetText(&lcd_base, "Record          ", 0, 0);
+    lcdSetText(&lcd_base, "Record           ", 0, 0);
+}
+
+void lcd_timer_disconnected(void){
+    lcdClear(&lcd_base);
+    lcdSetText(&lcd_base, "Timer Disconect", 0, 0);
+    lcdSetText(&lcd_base, "Please connect", 0, 1);
 }

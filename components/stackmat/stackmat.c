@@ -1,5 +1,6 @@
 #include "stackmat.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -51,21 +52,41 @@ void stackmat_init(void)
     ESP_ERROR_CHECK(uart_enable_rx_intr(UART_NUM_2));
 }
 
-static void stackmat_get_uart(char *buffer, size_t buffer_size)
+static uint8_t stackmat_get_uart(char *buffer, size_t buffer_size)
 {
     uint8_t ch;
     int index=0;
     int len=0;
-        while(1){
-            len = uart_read_bytes(UART_NUM_2, &ch, 1, 10 / portMAX_DELAY);
-            if(len>0){
-                if(ch == '\r'){
-                    index=0;
-                    break; // Skip new line characters
+    size_t length=0;
+
+    uint64_t start_time = esp_timer_get_time();
+    uint64_t timeout = 500000; // 0.5 second timeout
+    uint64_t current_time;
+
+    uart_get_buffered_data_len(UART_NUM_2, &length);
+    while(1){
+        if(length > 8) {
+            while(1){
+                len = uart_read_bytes(UART_NUM_2, &ch, 1, 10 / portMAX_DELAY);
+                if(len>0){
+                    if(ch == '\r'){
+                        index=0;
+                        return 0; // Skip new line characters
+                    }
+                    buffer[index++]=ch;
                 }
-                buffer[index++]=ch;
             }
         }
+        else{
+            current_time = esp_timer_get_time();
+            if(current_time - start_time >= timeout) {
+                ESP_LOGE("Stackmat", "Timeout while reading data from Stackmat timer");
+                return 1; // Timeout error
+            }
+            uart_get_buffered_data_len(UART_NUM_2, &length);
+        }
+    }
+    return 0;
 }
 
 uint32_t stackmat_get_total_time(StackmatTimer *stackmatTimer)
@@ -76,7 +97,9 @@ uint32_t stackmat_get_total_time(StackmatTimer *stackmatTimer)
 
 uint8_t stackmat_get_time(StackmatTimer *stackmatTimer)
 {
-    stackmat_get_uart(data, sizeof(data));
+    if(stackmat_get_uart(data, sizeof(data))>0){
+        return 2;
+    }
     // Check if the received data is valid
     stackmatTimer->checksum = data[7];
     uint8_t sum=64;

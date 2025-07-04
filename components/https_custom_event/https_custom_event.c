@@ -103,8 +103,6 @@ static esp_http_client_config_t client_config = {
     .crt_bundle_attach = esp_crt_bundle_attach,
 };
 
-static esp_http_client_handle_t client = NULL;
-
 int8_t https_event_init(void)
 {
     nvs_handle_t nvs_handle;
@@ -149,11 +147,6 @@ int8_t https_event_init(void)
 
     client_config.url = api_url;
     ESP_LOGI(TAG, "HTTP request with url => %s", api_url);
-    client = esp_http_client_init(&client_config);
-    if (client == NULL) {
-        ESP_LOGE(TAG, "Failed to initialize HTTP client");
-        return -1;
-    }
 
     return 0;
 }
@@ -162,7 +155,12 @@ int8_t https_event_login(void)
 {
     char login_url[SERVER_URL_MAX_SZ + sizeof("/auth/login") + 1] = {0};
     snprintf(login_url, sizeof(login_url), "%s/auth/login", api_url);
-
+    esp_http_client_handle_t client = esp_http_client_init(&client_config);
+    if (client == NULL) {
+        ESP_LOGE(TAG, "Failed to initialize HTTP client");
+        esp_http_client_cleanup(client);
+        return -1;
+    }
     esp_http_client_set_url(client, login_url);
     esp_http_client_set_method(client, HTTP_METHOD_POST);
     esp_http_client_set_header(client, "Content-Type", "application/json");
@@ -170,6 +168,7 @@ int8_t https_event_login(void)
     cJSON *json = cJSON_CreateObject();
     if (json == NULL) {
         ESP_LOGE(TAG, "Failed to create JSON object");
+        esp_http_client_cleanup(client);
         return -1;
     }
     cJSON_AddStringToObject(json, "email", (const char *)api_auth.api_id);
@@ -179,6 +178,7 @@ int8_t https_event_login(void)
 
     if (json_str == NULL) {
         ESP_LOGE(TAG, "Failed to print JSON string");
+        esp_http_client_cleanup(client);
         return -1;
     }
 
@@ -195,12 +195,14 @@ int8_t https_event_login(void)
             if (json == NULL) {
                 ESP_LOGE(TAG, "Failed to parse JSON login response");
                 free(json_str);
+                esp_http_client_cleanup(client);
                 return -1;
             }
             snprintf(API_Token, sizeof(API_Token), "Bearer %s", cJSON_GetObjectItem(json, "token")->valuestring);
             cJSON_Delete(json);
             memset(local_response_buffer, 0, sizeof(local_response_buffer));
             free(json_str);
+            esp_http_client_cleanup(client);
             return 0;
         }
         else
@@ -211,6 +213,7 @@ int8_t https_event_login(void)
             vTaskDelay(pdMS_TO_TICKS(3000));
             esp_restart();
             free(json_str);
+            esp_http_client_cleanup(client);
             return -1;
         }
     }
@@ -218,6 +221,7 @@ int8_t https_event_login(void)
     {
         ESP_LOGE(TAG, "HTTP GET request failed: %s", esp_err_to_name(err));
         free(json_str);
+        esp_http_client_cleanup(client);
         return -1;
     }
 }
@@ -267,6 +271,7 @@ int8_t https_event_get_comp(void)
 {
     char get_comp_url[SERVER_URL_MAX_SZ + sizeof("/recorder/comp") + 1] = {0};
     snprintf(get_comp_url, sizeof(get_comp_url), "%s/recorder/comp", api_url);
+    esp_http_client_handle_t client = esp_http_client_init(&client_config);
     esp_http_client_set_url(client, get_comp_url);
     esp_http_client_set_method(client, HTTP_METHOD_GET);
     esp_http_client_set_header(client, "Authorization", API_Token);
@@ -282,6 +287,7 @@ int8_t https_event_get_comp(void)
             if (json == NULL) {
                 ESP_LOGE(TAG, "Failed to parse competition JSON");
                 memset(local_response_buffer, 0, sizeof(local_response_buffer));
+                esp_http_client_cleanup(client);
                 return -1;
             }
             comp_info_list_size = cJSON_GetArraySize(json);
@@ -292,6 +298,7 @@ int8_t https_event_get_comp(void)
                 cJSON_Delete(json);
                 vTaskDelay(pdMS_TO_TICKS(3000));
                 esp_restart();
+                esp_http_client_cleanup(client);
                 return -1;
             }
             else if (comp_info_list_size == 1)
@@ -304,7 +311,8 @@ int8_t https_event_get_comp(void)
                 lcd_print_second((char *)comp_info.comp_name);
                 cJSON_Delete(json);
                 memset(local_response_buffer, 0, sizeof(local_response_buffer));
-                vTaskDelay(pdMS_TO_TICKS(1000));
+                vTaskDelay(pdMS_TO_TICKS(1000));\
+                esp_http_client_cleanup(client);
                 return 0;
             }
             else
@@ -315,6 +323,7 @@ int8_t https_event_get_comp(void)
                     ESP_LOGE(TAG, "Memory allocation failed for competition list");
                     cJSON_Delete(json);
                     memset(local_response_buffer, 0, sizeof(local_response_buffer));
+                    esp_http_client_cleanup(client);
                     return -1;
                 }
                 for (int i = 0; i < comp_info_list_size; i++)
@@ -327,6 +336,7 @@ int8_t https_event_get_comp(void)
                 lcd_which_comp((char *)comp_info_list[0].comp_name);
                 cJSON_Delete(json);
                 memset(local_response_buffer, 0, sizeof(local_response_buffer));
+                esp_http_client_cleanup(client);
                 return https_event_select_comp(); // Register button events for competition selection
             }
         }
@@ -335,12 +345,14 @@ int8_t https_event_get_comp(void)
             ESP_LOGE(TAG, "Get Competition failed with status: %d", status);
             ESP_LOGE(TAG, "Response: %s", local_response_buffer);
             memset(local_response_buffer, 0, sizeof(local_response_buffer));
+            esp_http_client_cleanup(client);
             return -1;
         }
     }
     else
     {
         ESP_LOGE(TAG, "HTTP Get Competition request failed: %s", esp_err_to_name(err));
+        esp_http_client_cleanup(client);
         return -1;
     }
 }
@@ -350,8 +362,10 @@ int8_t https_event_get_player_info(char *player_uid, player_type_t player_type)
     char player_url[SERVER_URL_MAX_SZ + sizeof("/recorder/info") + 9] = {0};
     snprintf(player_url, sizeof(player_url), "%s/recorder/info/%s", api_url, player_uid);
 
+    esp_http_client_handle_t client = esp_http_client_init(&client_config);
     esp_http_client_set_url(client, player_url);
     esp_http_client_set_method(client, HTTP_METHOD_GET);
+    esp_http_client_set_header(client, "Authorization", API_Token);
 
     esp_err_t err = esp_http_client_perform(client);
     if (err == ESP_OK)
@@ -364,6 +378,7 @@ int8_t https_event_get_player_info(char *player_uid, player_type_t player_type)
             if (json == NULL) {
                 ESP_LOGE(TAG, "Failed to parse player JSON");
                 memset(local_response_buffer, 0, sizeof(local_response_buffer));
+                esp_http_client_cleanup(client);
                 return -1;
             }
             switch (player_type)
@@ -395,11 +410,13 @@ int8_t https_event_get_player_info(char *player_uid, player_type_t player_type)
             }
             cJSON_Delete(json);
             memset(local_response_buffer, 0, sizeof(local_response_buffer));
+            esp_http_client_cleanup(client);
             return 0;
         }
         else if(status == 204){
             ESP_LOGE(TAG, "Not registered player");
             memset(local_response_buffer, 0, sizeof(local_response_buffer));
+            esp_http_client_cleanup(client);
             return -2;
         }
         else
@@ -407,12 +424,15 @@ int8_t https_event_get_player_info(char *player_uid, player_type_t player_type)
             ESP_LOGE(TAG, "Get Player failed with status: %d", status);
             ESP_LOGE(TAG, "Response: %s", local_response_buffer);
             memset(local_response_buffer, 0, sizeof(local_response_buffer));
+            esp_http_client_cleanup(client);
             return -1;
         }
     }
     else
     {
         ESP_LOGE(TAG, "HTTP Get Player request failed: %s", esp_err_to_name(err));
+        esp_http_client_cleanup(client);
+        esp_wifi_connect(); // Reconnect Wi-Fi
         return -1;
     }
 }
@@ -421,6 +441,8 @@ int8_t https_event_get_record(void)
 {
     char get_record_url[SERVER_URL_MAX_SZ + sizeof("/recorder/record") + 1 + 64 + 1] = {0};
     snprintf(get_record_url, sizeof(get_record_url), "%s/recorder/record/%s/%ld", api_url, player_info.player_email, comp_info.idx);
+
+    esp_http_client_handle_t client = esp_http_client_init(&client_config);
     esp_http_client_set_url(client, get_record_url);
     esp_http_client_set_method(client, HTTP_METHOD_GET);
     esp_http_client_set_header(client, "Authorization", API_Token);
@@ -438,6 +460,7 @@ int8_t https_event_get_record(void)
                 memset(&player_info, 0, sizeof(player_info));
                 memset(&record_info, 0, sizeof(record_info));
                 memset(local_response_buffer, 0, sizeof(local_response_buffer));
+                esp_http_client_cleanup(client);
                 return -1;
             }
             record_info.attempt_idx = cJSON_GetObjectItem(json, "attemptIdx")->valueint;
@@ -448,6 +471,7 @@ int8_t https_event_get_record(void)
             ESP_LOGI(TAG, "Record found: %s-%d, %s", record_info.round_name, record_info.seq, record_info.player_name);
             cJSON_Delete(json);
             memset(local_response_buffer, 0, sizeof(local_response_buffer));
+            esp_http_client_cleanup(client);
             return 0;
         }
         else if(status == 204){
@@ -455,6 +479,7 @@ int8_t https_event_get_record(void)
             memset(&player_info, 0, sizeof(player_info));
             memset(&record_info, 0, sizeof(record_info));
             memset(local_response_buffer, 0, sizeof(local_response_buffer));
+            esp_http_client_cleanup(client);
             return -2;
         }
         else
@@ -464,6 +489,7 @@ int8_t https_event_get_record(void)
             memset(&player_info, 0, sizeof(player_info));
             memset(&record_info, 0, sizeof(record_info));
             memset(local_response_buffer, 0, sizeof(local_response_buffer));
+            esp_http_client_cleanup(client);
             return -1;
         }
     }
@@ -472,6 +498,8 @@ int8_t https_event_get_record(void)
         ESP_LOGE(TAG, "HTTP Get Record request failed: %s", esp_err_to_name(err));
         memset(&player_info, 0, sizeof(player_info));
         memset(&record_info, 0, sizeof(record_info));
+        esp_http_client_cleanup(client);
+        esp_wifi_connect(); // Reconnect Wi-Fi
         return -1;
     }
 }
@@ -480,6 +508,8 @@ int8_t https_event_update_record(double record)
 {
     char update_record_url[SERVER_URL_MAX_SZ + sizeof("/recorder/record") + 1] = {0};
     snprintf(update_record_url, sizeof(update_record_url), "%s/recorder/record", api_url);
+
+    esp_http_client_handle_t client = esp_http_client_init(&client_config);
     esp_http_client_set_url(client, update_record_url);
     esp_http_client_set_method(client, HTTP_METHOD_POST);
     esp_http_client_set_header(client, "Authorization", API_Token);
@@ -488,6 +518,7 @@ int8_t https_event_update_record(double record)
     cJSON *json = cJSON_CreateObject();
     if (json == NULL) {
         ESP_LOGE(TAG, "Failed to create JSON object");
+        esp_http_client_cleanup(client);
         return -1;
     }
     cJSON_AddNumberToObject(json, "attemptIdx", record_info.attempt_idx);
@@ -499,6 +530,7 @@ int8_t https_event_update_record(double record)
 
     if (json_str == NULL) {
         ESP_LOGE(TAG, "Failed to print JSON string");
+        esp_http_client_cleanup(client);
         return -1;
     }
 
@@ -514,6 +546,7 @@ int8_t https_event_update_record(double record)
             ESP_LOGI(TAG, "Record updated successfully");
             memset(local_response_buffer, 0, sizeof(local_response_buffer));
             free(json_str);
+            esp_http_client_cleanup(client);
             return 0;
         }
         else
@@ -522,6 +555,7 @@ int8_t https_event_update_record(double record)
             ESP_LOGE(TAG, "Response: %s", local_response_buffer);
             memset(local_response_buffer, 0, sizeof(local_response_buffer));
             free(json_str);
+            esp_http_client_cleanup(client);
             return -1;
         }
     }
@@ -529,6 +563,8 @@ int8_t https_event_update_record(double record)
     {
         ESP_LOGE(TAG, "HTTP Update Record request failed: %s", esp_err_to_name(err));
         free(json_str);
+        esp_http_client_cleanup(client);
+        esp_wifi_connect(); // Reconnect Wi-Fi
         return -1;
     }
 }

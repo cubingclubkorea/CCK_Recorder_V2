@@ -21,19 +21,19 @@ typedef enum {
 typedef struct {
     volatile StackmatTimerState state;
     volatile uint8_t minute;
-    volatile uint8_t second;
+    volatile int8_t second;
     volatile uint16_t mill;
     volatile uint8_t checksum;
+    volatile uint8_t is_connected;
 } StackmatTimer;
 
 typedef struct {
     uint8_t minute;
-    uint8_t second;
-    int16_t mill;
+    int8_t second;
+    uint16_t mill;
     uint8_t penalty_count;
 } RecordTime;
 
-extern RecordTime recordTime;
 extern RecordTime baseRecordTime;
 
 void stackmat_init(void);
