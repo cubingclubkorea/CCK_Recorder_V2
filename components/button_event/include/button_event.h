@@ -37,14 +37,6 @@ extern QueueHandle_t eventQueue;
 
 void button_event_init(void);
 
-void button_event_register(gpio_num_t button, gpio_isr_t handler, void *arg);
-
-void button_event_unregister(gpio_num_t button);
-
-void button_event_send(void *arg);
-
-void button_event_penalty(void *arg);
-void button_event_dnf(void *arg);
-void button_event_reset(void *arg);
+uint8_t button_checker(void);
 
 #endif

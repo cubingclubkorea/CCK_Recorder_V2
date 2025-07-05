@@ -1,12 +1,13 @@
 #include "wifimanager.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/event_groups.h"
+
 
 #include "esp_system.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_mac.h"
+#include "esp_lcd.h"
 
 #include "esp_netif.h"
 #include "nvs_flash.h"
@@ -23,12 +24,10 @@
 
 #define AP_WIFI_CHANNEL 1
 #define AP_MAX_STA_CONN 2
-#define WIFI_CONNECTED_BIT BIT0
-#define WIFI_FAIL_BIT      BIT1
 
 static const char *base_path= "/spiflash";
 
-static EventGroupHandle_t s_wifi_event_group;
+EventGroupHandle_t s_wifi_event_group;
 static const char *TAG = "WIFI_MANAGER";
 static int s_retry_num = 0;
 
@@ -87,6 +86,7 @@ static void wifi_sta_event_handler(void* arg, esp_event_base_t event_base,
             s_retry_num++;
             ESP_LOGI(TAG, "retry to connect to the AP");
         } else {
+            lcd_not_connected_wifi();
             ESP_LOGI(TAG,"failed to connect to the WiFi, switching to the AP mode");
             esp_wifi_disconnect();
             xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
@@ -94,6 +94,7 @@ static void wifi_sta_event_handler(void* arg, esp_event_base_t event_base,
         }
         ESP_LOGI(TAG,"connect to the AP fail");
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+        lcd_connected_wifi();
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
         ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
         s_retry_num = 0;
@@ -340,6 +341,7 @@ static httpd_handle_t start_webserver(void)
 
 void wifi_init_sta(void)
 {
+    lcd_wait_connect();
     nvs_handle_t nvs_handle;
     size_t len;
     esp_err_t err = nvs_flash_init();

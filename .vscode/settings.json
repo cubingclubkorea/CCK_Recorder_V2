@@ -14,7 +14,7 @@
     "ESP_ROM_ELF_DIR": "C:\\Users\\Mario76\\.espressif\\tools\\esp-rom-elfs\\20230320/",
     "IDF_TARGET": "esp32"
   },
-  "idf.portWin": "COM8",
+  "idf.portWin": "COM47",
   "idf.flashType": "UART",
   "files.associations": {
     "*.dbclient-js": "javascript",
@@ -35,6 +35,11 @@
     "esp_log.h": "c",
     "button_event.h": "c",
     "https_event.h": "c",
-    "algorithm": "c"
+    "algorithm": "c",
+    "freertos.h": "c",
+    "esp_lcd.h": "c",
+    "task_integrated.h": "c",
+    "wifimanager.h": "c",
+    "rc522_spi.h": "c"
   }
 }
