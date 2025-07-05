@@ -10,13 +10,6 @@ static enum {
     LCD_STATE_TIMER_NOT_RESET,
 } last_lcd_state = LCD_STATE_NONE;
 
-static enum {
-    LCD_INSPECTION_NONE,
-    LCD_INSPECTION_8s,
-    LCD_INSPECTION_12s,
-    LCD_INSPECTION_15s
-} last_lcd_inspection = LCD_INSPECTION_NONE;
-
 TaskHandle_t app_task_handle = NULL;
 TaskHandle_t reset_all_task_handle = NULL;
 
@@ -170,7 +163,6 @@ static void app_inspection(void){
     uint64_t start_time=esp_timer_get_time();
     uint64_t remaining_time;
     last_lcd_state=LCD_STATE_NONE;
-    last_lcd_inspection=LCD_INSPECTION_NONE;
     char inspection_buffer[17]={};
     while(1){
         if(stackmat_get_time(&stackmatTimer)==2){
@@ -181,6 +173,7 @@ static void app_inspection(void){
             vTaskDelay(pdMS_TO_TICKS(50));
             continue;
         }
+        last_lcd_state=LCD_STATE_NONE;
         remaining_time = esp_timer_get_time()-start_time;
         if(stackmatTimer.state == ST_Running){
             if(remaining_time >= 15000000 && remaining_time < 17000000){
@@ -200,22 +193,13 @@ static void app_inspection(void){
         lcd_inspection((char *)inspection_buffer);
 
         if(remaining_time>=15000000){
-            if(last_lcd_inspection!=LCD_INSPECTION_15s){
-                lcd_inspection_alert("+15");
-                last_lcd_inspection=LCD_INSPECTION_15s;
-            }
+            lcd_inspection_alert("+15");
         }
         else if(remaining_time>=12000000){
-            if(last_lcd_inspection!=LCD_INSPECTION_12s){
-                lcd_inspection_alert("+12");
-                last_lcd_inspection=LCD_INSPECTION_12s;
-            }
+            lcd_inspection_alert("+12");
         }
         else if(remaining_time>=8000000){
-            if(last_lcd_inspection!=LCD_INSPECTION_8s){
-                lcd_inspection_alert("+8");
-                last_lcd_inspection=LCD_INSPECTION_8s;
-            }
+            lcd_inspection_alert("+8");
         }
         vTaskDelay(pdMS_TO_TICKS(10));
     }
@@ -233,6 +217,10 @@ static void app_timer_running(void){
             }
             vTaskDelay(pdMS_TO_TICKS(50));
             continue;
+        }
+        if(last_lcd_state==LCD_STATE_TIMER_DISCONNECTED || last_lcd_state==LCD_STATE_TIMER_NOT_RESET){
+            lcd_timer_running();
+            last_lcd_state=LCD_STATE_NONE;
         }
         if(stackmatTimer.state == ST_Running){
             timer_format(timer_buffer, sizeof(timer_buffer));
@@ -307,25 +295,23 @@ static void app_update_record(void){
             rc522_custom_pause();
             int8_t ret=https_event_get_player_info(player_uid, player_check);
             if(ret == 0){
-                int8_t ret2 = https_event_update_record(record);
-                if(ret2==0){
-                    if(player_info.valid==1){
-                        lcd_uploaded(record_info.seq);
+                if(player_info.valid==1){
+                    int8_t ret2 = https_event_update_record(record);
+                    if(ret2==0){
                         memset(&record_info, 0, sizeof(record_info));
                         memset(&baseRecordTime, 0, sizeof(baseRecordTime));
                         memset(&stackmatTimer, 0, sizeof(stackmatTimer));
                         memset(&player_info, 0, sizeof(player_info));
                         app_state = APP_STATE_REGIST_PLAYER;
-                        vTaskDelay(pdMS_TO_TICKS(2000));
                         return;
                     }
                     else{
-                        lcd_not_matched();
+                        lcd_com_error();
                         vTaskDelay(pdMS_TO_TICKS(1000));
                     }
                 }
                 else{
-                    lcd_com_error();
+                    lcd_not_matched();
                     vTaskDelay(pdMS_TO_TICKS(1000));
                 }
             }

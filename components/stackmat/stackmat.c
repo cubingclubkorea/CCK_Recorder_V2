@@ -60,13 +60,15 @@ static uint8_t stackmat_get_uart(char *buffer, size_t buffer_size)
     size_t length=0;
 
     uint64_t start_time = esp_timer_get_time();
-    uint64_t timeout = 500000; // 0.5 second timeout
+    uint64_t timeout = 250000; // 0.25 second timeout
     uint64_t current_time;
 
     uart_get_buffered_data_len(UART_NUM_2, &length);
     while(1){
         if(length > 8) {
+            uint64_t inner_start_time = esp_timer_get_time();
             while(1){
+                current_time = esp_timer_get_time();
                 len = uart_read_bytes(UART_NUM_2, &ch, 1, 10 / portMAX_DELAY);
                 if(len>0){
                     if(ch == '\r'){
@@ -74,6 +76,11 @@ static uint8_t stackmat_get_uart(char *buffer, size_t buffer_size)
                         return 0; // Skip new line characters
                     }
                     buffer[index++]=ch;
+                }
+                
+                if (current_time - inner_start_time > timeout) {
+                    ESP_LOGE("Stackmat", "Timeout while reading in inner loop");
+                    return 1; // 중간 수신 중단
                 }
             }
         }

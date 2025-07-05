@@ -489,6 +489,7 @@ void lcd_timer_running(void){
 void lcd_timer_stopped(char *seq){
     char message[17];
     snprintf(message, sizeof(message), "Record: Try %s", seq);
+    lcdClear(&lcd_base);
     lcdSetText(&lcd_base, message, 0, 0);
 }
 

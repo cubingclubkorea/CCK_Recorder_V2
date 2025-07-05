@@ -557,7 +557,24 @@ int8_t https_event_update_record(double record)
         ESP_LOGI(TAG, "HTTP Update Record Status = %d", status);
         if (status == 200)
         {
+            lcd_uploaded(record_info.seq);
+            vTaskDelay(pdMS_TO_TICKS(2000));
             ESP_LOGI(TAG, "Record updated successfully");
+            cJSON *json = cJSON_Parse(local_response_buffer);
+            if(json!=NULL){
+                cJSON *single = cJSON_GetObjectItem(json, "single");
+                cJSON *average = cJSON_GetObjectItem(json, "average");
+                if(single || average){
+                    if(record_info.seq==4){
+                        lcd_bwpa(single->valuestring, average->valuestring);
+                    }
+                    else{
+                        lcd_sinavg(single->valuestring, average->valuestring);
+                    }
+                }
+                vTaskDelay(pdMS_TO_TICKS(3000));
+            }
+            cJSON_Delete(json);
             memset(local_response_buffer, 0, sizeof(local_response_buffer));
             free(json_str);
             return 0;
