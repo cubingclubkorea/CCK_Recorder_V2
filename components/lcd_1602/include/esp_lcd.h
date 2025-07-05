@@ -11,11 +11,12 @@
 #define _ESP_LCD_H_
 
 #include "driver/gpio.h"
+#include <stdint.h>
 
 /* LCD Error */
 typedef int lcd_err_t;      /*!< LCD error type */
 
-#define LCD_FAIL            -1  /*!< LCD fail error */
+#define LCD_FAIL            (-1)  /*!< LCD fail error */
 #define LCD_OK               0  /*!< LCD success    */
 
 
@@ -52,6 +53,8 @@ typedef struct
     lcd_state_t state;              /*!< LCD state  */
 } lcd_t;
 
+extern lcd_t lcd_base; /*!< Global LCD object */
+
 void lcdDefault(lcd_t *const lcd);
 
 void lcdInit(lcd_t *const lcd);
@@ -67,5 +70,35 @@ lcd_err_t lcdClear(lcd_t *const lcd);
 void lcdFree(lcd_t * const lcd);
 
 void assert_lcd(lcd_err_t lcd_error);
+
+void lcd_wait_connect(void);
+void lcd_connected_wifi(void);
+void lcd_not_connected_wifi(void);
+void lcd_disconnected_wifi(void);
+void lcd_wait_card(char *type);
+void lcd_judge(char *name);
+void lcd_scanned(void);
+void lcd_not_registered(void);
+void lcd_not_registered_delegate(void);
+void lcd_waiting_for_card(void);
+void lcd_print_second(char *time);
+void lcd_uploaded(uint8_t seq);
+void lcd_bwpa(char *bpa, char *wpa);
+void lcd_sinavg(char *single, char *average);
+void lcd_not_matched(void);
+void lcd_com_error(void);
+void lcd_which_comp(char *comp_name);
+void lcd_comp_selected(void);
+void lcd_comp_not_found(void);
+void lcd_reset_timer(void);
+void lcd_duplicated_judge(void);
+void lcd_record_info(char *record, char *round);
+void lcd_dnf(void);
+void lcd_inspection(char *inspection);
+void lcd_inspection_alert(char *alert);
+void lcd_timer_running(void);
+void lcd_timer_stopped(char *seq);
+void lcd_timer_disconnected(void);
+
 
 #endif

@@ -1,9 +1,30 @@
 #include "stackmat.h"
 #include "esp_log.h"
+#include "esp_timer.h"
+#include <string.h>
 #include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
 #include "freertos/timers.h"
 
-void stackmat_init()
+#include "driver/uart.h"
+#include "hal/uart_ll.h"
+
+#if CONFIG_IDF_TARGET_ESP32
+#define RXD2_PIN GPIO_NUM_16
+
+#elif CONFIG_IDF_TARGET_ESP32S3
+#define RXD2_PIN GPIO_NUM_18
+
+#else
+#error "Unsupported target. Please define RXD2_PIN for this target."
+
+#endif
+
+RecordTime baseRecordTime={};
+char data[9]={};
+
+void stackmat_init(void)
 {
     // Initialize UART for Stackmat timer communication
     uart_config_t uart_config = {
@@ -15,19 +36,99 @@ void stackmat_init()
         .source_clk = UART_SCLK_APB,
     };
 
+    uart_intr_config_t uart_intr = {
+        .intr_enable_mask = UART_INTR_RXFIFO_FULL | UART_INTR_RXFIFO_TOUT,
+        .rxfifo_full_thresh = 1,
+        .rx_timeout_thresh = 1,
+    };
+
     // Install UART driver
-    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_0, RX_BUFFER_SIZE, 0, 0, NULL, 0));
-    ESP_ERROR_CHECK(uart_param_config(UART_NUM_0, &uart_config));
-    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_0, NULL, RXD2_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+    ESP_ERROR_CHECK(uart_param_config(UART_NUM_2, &uart_config));
+    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_2, UART_PIN_NO_CHANGE, RXD2_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_2, STACKMAT_RX_BUFFER_SIZE, 0, 0, NULL, 0));
+    ESP_ERROR_CHECK(uart_intr_config(UART_NUM_2, &uart_intr));
+
+    // Enable UART RX FIFO full threshold and timeout interrupts
+    ESP_ERROR_CHECK(uart_enable_rx_intr(UART_NUM_2));
 }
 
-static void stackmat_get_time(char *buffer, size_t buffer_size)
+static uint8_t stackmat_get_uart(char *buffer, size_t buffer_size)
 {
-    // Read data from the Stackmat timer
-    int len = uart_read_bytes(UART_NUM_0, (uint8_t *)buffer, buffer_size - 1, 0);
-    if (len >= 8) {
-        buffer[len] = '\0'; // Null-terminate the string
-    } else {
-        buffer[0] = '\0'; // Ensure the buffer is empty if no data was read
+    uint8_t ch;
+    int index=0;
+    int len=0;
+    size_t length=0;
+
+    uint64_t start_time = esp_timer_get_time();
+    uint64_t timeout = 250000; // 0.25 second timeout
+    uint64_t current_time;
+
+    uart_get_buffered_data_len(UART_NUM_2, &length);
+    while(1){
+        if(length > 8) {
+            uint64_t inner_start_time = esp_timer_get_time();
+            while(1){
+                current_time = esp_timer_get_time();
+                len = uart_read_bytes(UART_NUM_2, &ch, 1, 10 / portMAX_DELAY);
+                if(len>0){
+                    if(ch == '\r'){
+                        index=0;
+                        return 0; // Skip new line characters
+                    }
+                    buffer[index++]=ch;
+                }
+                
+                if (current_time - inner_start_time > timeout) {
+                    ESP_LOGE("Stackmat", "Timeout while reading in inner loop");
+                    return 1; // 중간 수신 중단
+                }
+            }
+        }
+        else{
+            current_time = esp_timer_get_time();
+            if(current_time - start_time >= timeout) {
+                ESP_LOGE("Stackmat", "Timeout while reading data from Stackmat timer");
+                return 1; // Timeout error
+            }
+            uart_get_buffered_data_len(UART_NUM_2, &length);
+        }
     }
+    return 0;
+}
+
+uint32_t stackmat_get_total_time(StackmatTimer *stackmatTimer)
+{
+    uint32_t totalTime = (stackmatTimer->minute * 60 + stackmatTimer->second) * 1000 + stackmatTimer->mill;
+    return totalTime;
+}
+
+uint8_t stackmat_get_time(StackmatTimer *stackmatTimer)
+{
+    if(stackmat_get_uart(data, sizeof(data))>0){
+        return 2;
+    }
+    // Check if the received data is valid
+    stackmatTimer->checksum = data[7];
+    uint8_t sum=64;
+    for(int i=1; i<7; i++){
+        sum+=(data[i] - '0');
+    }
+    if(sum != stackmatTimer->checksum){
+        return 1; // Checksum error
+    }
+    // Parse the received data
+    stackmatTimer->state = data[0];
+    stackmatTimer->minute = (data[1] - '0') ;
+    stackmatTimer->second = (data[2] - '0') * 10 + (data[3] - '0');
+    stackmatTimer->mill = (data[4] - '0') * 100 + (data[5] - '0') * 10 + (data[6] - '0');
+    // Validate the timer state(If the timer does not support Stopped)
+    if(stackmat_get_total_time(stackmatTimer) > 0 && stackmatTimer->state==ST_Reset){
+        stackmatTimer->state = ST_Stopped; // Reset state to stopped if timer was reset
+    }
+    if(stackmatTimer->state==ST_Stopped){
+        baseRecordTime.minute=stackmatTimer->minute;
+        baseRecordTime.second=stackmatTimer->second;
+        baseRecordTime.mill=stackmatTimer->mill;
+    }
+    return 0; // Success
 }
