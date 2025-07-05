@@ -24,4 +24,8 @@ void app_initiate(void);
 
 void app_task_start(void);
 
+void app_task_stop(void);
+
+void app_task_restart(void);
+
 #endif

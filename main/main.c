@@ -5,9 +5,6 @@
 #include "task_integrated.h"
 #include "esp_log.h"
 
-
-
 void app_main(void){
     app_initiate();
-    app_task_start();
 }

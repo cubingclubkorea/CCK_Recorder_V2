@@ -97,7 +97,7 @@ void lcd_dnf(void);
 void lcd_inspection(char *inspection);
 void lcd_inspection_alert(char *alert);
 void lcd_timer_running(void);
-void lcd_timer_stopped(void);
+void lcd_timer_stopped(char *seq);
 void lcd_timer_disconnected(void);
 
 

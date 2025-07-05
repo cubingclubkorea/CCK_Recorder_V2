@@ -486,8 +486,10 @@ void lcd_inspection_alert(char *alert){
 void lcd_timer_running(void){
     lcdSetText(&lcd_base, "Solving...       ", 0, 0);
 }
-void lcd_timer_stopped(void){
-    lcdSetText(&lcd_base, "Record           ", 0, 0);
+void lcd_timer_stopped(char *seq){
+    char message[17];
+    snprintf(message, sizeof(message), "Record: Try %s", seq);
+    lcdSetText(&lcd_base, message, 0, 0);
 }
 
 void lcd_timer_disconnected(void){

@@ -396,7 +396,9 @@ int8_t https_event_get_player_info(char *player_uid, player_type_t player_type)
                 ESP_LOGI(TAG, "Judge info = %s", judge_info.judge_name);
                 break;
             case player_player:
-                if(strcmp(cJSON_GetObjectItem(json, "email")->valuestring, judge_info.judge_email)==0){
+                if(strcmp(cJSON_GetObjectItem(json, "email")->valuestring, (const char *)judge_info.judge_email)==0){
+                    cJSON_Delete(json);
+                    memset(local_response_buffer, 0, sizeof(local_response_buffer));
                     ESP_LOGW(TAG, "Player and Judge equals");
                     return -3;
                 }

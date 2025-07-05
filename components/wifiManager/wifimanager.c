@@ -1,7 +1,7 @@
 #include "wifimanager.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/event_groups.h"
+
 
 #include "esp_system.h"
 #include "esp_event.h"
@@ -24,12 +24,10 @@
 
 #define AP_WIFI_CHANNEL 1
 #define AP_MAX_STA_CONN 2
-#define WIFI_CONNECTED_BIT BIT0
-#define WIFI_FAIL_BIT      BIT1
 
 static const char *base_path= "/spiflash";
 
-static EventGroupHandle_t s_wifi_event_group;
+EventGroupHandle_t s_wifi_event_group;
 static const char *TAG = "WIFI_MANAGER";
 static int s_retry_num = 0;
 
