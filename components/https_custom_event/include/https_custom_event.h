@@ -57,6 +57,6 @@ int8_t https_event_get_comp(void);
 int8_t https_event_get_player_info(char *player_uid, player_type_t player_type);
 int8_t https_event_get_record(void);
 int8_t https_event_update_record(double record);
-
+void https_event_keep_alive_task(void *args);
 
 #endif
