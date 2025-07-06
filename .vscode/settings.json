@@ -40,6 +40,7 @@
     "esp_lcd.h": "c",
     "task_integrated.h": "c",
     "wifimanager.h": "c",
-    "rc522_spi.h": "c"
+    "rc522_spi.h": "c",
+    "i2s.h": "c"
   }
 }

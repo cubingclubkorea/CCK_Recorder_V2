@@ -162,6 +162,19 @@ int8_t https_event_init(void)
     return 0;
 }
 
+esp_err_t https_reconnect(void){
+    if (client) {
+        esp_http_client_cleanup(client);
+        client = NULL;
+    }
+    client = esp_http_client_init(&client_config);
+    if (!client) {
+        ESP_LOGE(TAG, "Failed to reinit HTTP client");
+        return ESP_FAIL;
+    }
+    return ESP_OK;
+}
+
 int8_t https_event_login(void)
 {
     char login_url[SERVER_URL_MAX_SZ + sizeof("/auth/login") + 1] = {0};
@@ -221,8 +234,7 @@ int8_t https_event_login(void)
             vTaskDelay(pdMS_TO_TICKS(3000));
             esp_restart();
             free(json_str);
-            esp_http_client_cleanup(client);
-            client = esp_http_client_init(&client_config);
+            https_reconnect();
             return -1;
         }
     }
@@ -356,8 +368,7 @@ int8_t https_event_get_comp(void)
             ESP_LOGE(TAG, "Get Competition failed with status: %d", status);
             ESP_LOGE(TAG, "Response: %s", local_response_buffer);
             memset(local_response_buffer, 0, sizeof(local_response_buffer));
-            esp_http_client_cleanup(client);
-            client = esp_http_client_init(&client_config);
+            https_reconnect();
             return -1;
         }
     }
@@ -442,8 +453,7 @@ int8_t https_event_get_player_info(char *player_uid, player_type_t player_type)
             ESP_LOGE(TAG, "Get Player failed with status: %d", status);
             ESP_LOGE(TAG, "Response: %s", local_response_buffer);
             memset(local_response_buffer, 0, sizeof(local_response_buffer));
-            esp_http_client_cleanup(client);
-            client = esp_http_client_init(&client_config);
+            https_reconnect();
             return -1;
         }
     }
@@ -508,8 +518,7 @@ int8_t https_event_get_record(void)
             memset(&player_info, 0, sizeof(player_info));
             memset(&record_info, 0, sizeof(record_info));
             memset(local_response_buffer, 0, sizeof(local_response_buffer));
-            esp_http_client_cleanup(client);
-            client = esp_http_client_init(&client_config);
+            https_reconnect();
             return -1;
         }
     }
@@ -594,8 +603,7 @@ int8_t https_event_update_record(double record)
             ESP_LOGE(TAG, "Response: %s", local_response_buffer);
             memset(local_response_buffer, 0, sizeof(local_response_buffer));
             free(json_str);
-            esp_http_client_cleanup(client);
-            client = esp_http_client_init(&client_config);
+            https_reconnect();
             return -1;
         }
     }
@@ -623,8 +631,7 @@ void https_event_keep_alive_task(void *args){
             esp_err_t err = esp_http_client_perform(client);
             if (err != ESP_OK) {
                 ESP_LOGW(TAG, "Keep-alive failed: %s", esp_err_to_name(err));
-                esp_http_client_cleanup(client);
-                client = esp_http_client_init(&client_config);
+                https_reconnect();
             }
             last_conn_timer = esp_timer_get_time();
             memset(local_response_buffer, 0, sizeof(local_response_buffer));
