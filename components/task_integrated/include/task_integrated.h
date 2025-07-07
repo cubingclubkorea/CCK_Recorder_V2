@@ -11,6 +11,8 @@
 #include "stackmat.h"
 #include "rc522_custom.h"
 #include "https_custom_event.h"
+#include "wifimanager.h"
+#include "sound_task.h"
 
 typedef enum {
     APP_STATE_REGIST_PLAYER,
