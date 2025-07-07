@@ -4,7 +4,7 @@
   "idf.pythonInstallPath": "C:\\Users\\Mario76\\.espressif\\tools\\idf-python\\3.11.2\\python.exe",
   "idf.openOcdConfigs": [
     "interface/ftdi/esp32_devkitj_v1.cfg",
-    "target/esp32.cfg"
+    "target/esp32s3.cfg"
   ],
   "idf.port": "/dev/tty.debug-console",
   "idf.toolsPath": "/Users/Mario76/.espressif",
@@ -40,6 +40,7 @@
     "esp_lcd.h": "c",
     "task_integrated.h": "c",
     "wifimanager.h": "c",
-    "rc522_spi.h": "c"
+    "rc522_spi.h": "c",
+    "i2s.h": "c"
   }
 }

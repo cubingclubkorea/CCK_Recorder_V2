@@ -52,11 +52,12 @@ extern player_info_t player_info;
 extern record_info_t record_info;
 
 int8_t https_event_init(void);
+esp_err_t https_reconnect(void);
 int8_t https_event_login(void);
 int8_t https_event_get_comp(void);
 int8_t https_event_get_player_info(char *player_uid, player_type_t player_type);
 int8_t https_event_get_record(void);
 int8_t https_event_update_record(double record);
-
+void https_event_keep_alive_task(void *args);
 
 #endif

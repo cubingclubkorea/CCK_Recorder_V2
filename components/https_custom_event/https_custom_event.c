@@ -54,6 +54,8 @@ static api_auth_t api_auth = {
 static comp_info_t *comp_info_list;
 static int comp_info_list_size = 0;
 
+static uint64_t last_conn_timer;
+
 comp_info_t comp_info = {};
 judge_info_t judge_info = {};
 player_info_t player_info = {};
@@ -155,7 +157,22 @@ int8_t https_event_init(void)
         esp_http_client_cleanup(client);
         return -1;
     }
+    last_conn_timer=esp_timer_get_time();
+    xTaskCreate(https_event_keep_alive_task, "Keep_alive", 2048, NULL, tskIDLE_PRIORITY + 1, NULL);
     return 0;
+}
+
+esp_err_t https_reconnect(void){
+    if (client) {
+        esp_http_client_cleanup(client);
+        client = NULL;
+    }
+    client = esp_http_client_init(&client_config);
+    if (!client) {
+        ESP_LOGE(TAG, "Failed to reinit HTTP client");
+        return ESP_FAIL;
+    }
+    return ESP_OK;
 }
 
 int8_t https_event_login(void)
@@ -188,6 +205,7 @@ int8_t https_event_login(void)
     esp_http_client_set_post_field(client, json_str, strlen(json_str));
 
     esp_err_t err = esp_http_client_perform(client);
+    last_conn_timer=esp_timer_get_time();
     if (err == ESP_OK)
     {
         int status = esp_http_client_get_status_code(client);
@@ -216,8 +234,7 @@ int8_t https_event_login(void)
             vTaskDelay(pdMS_TO_TICKS(3000));
             esp_restart();
             free(json_str);
-            esp_http_client_cleanup(client);
-            client = esp_http_client_init(&client_config);
+            https_reconnect();
             return -1;
         }
     }
@@ -281,6 +298,7 @@ int8_t https_event_get_comp(void)
     esp_http_client_set_header(client, "Authorization", API_Token);
 
     esp_err_t err = esp_http_client_perform(client);
+    last_conn_timer=esp_timer_get_time();
     if (err == ESP_OK)
     {
         int status = esp_http_client_get_status_code(client);
@@ -313,6 +331,9 @@ int8_t https_event_get_comp(void)
                 comp_info.idx = cJSON_GetObjectItem(item, "idx")->valueint;
                 strncpy((char *)comp_info.comp_name, cJSON_GetObjectItem(item, "compName")->valuestring, sizeof(comp_info.comp_name) - 1);
                 ESP_LOGI(TAG, "Competition found: %s", comp_info.comp_name);
+                char comp_display[64] = {0};
+                snprintf(comp_display, sizeof(comp_display), "%-16s", comp_info.comp_name);
+                lcd_print_second(comp_display);
                 lcd_comp_selected();
                 lcd_print_second((char *)comp_info.comp_name);
                 cJSON_Delete(json);
@@ -350,8 +371,7 @@ int8_t https_event_get_comp(void)
             ESP_LOGE(TAG, "Get Competition failed with status: %d", status);
             ESP_LOGE(TAG, "Response: %s", local_response_buffer);
             memset(local_response_buffer, 0, sizeof(local_response_buffer));
-            esp_http_client_cleanup(client);
-            client = esp_http_client_init(&client_config);
+            https_reconnect();
             return -1;
         }
     }
@@ -374,6 +394,7 @@ int8_t https_event_get_player_info(char *player_uid, player_type_t player_type)
     esp_http_client_set_header(client, "Authorization", API_Token);
 
     esp_err_t err = esp_http_client_perform(client);
+    last_conn_timer=esp_timer_get_time();
     if (err == ESP_OK)
     {
         int status = esp_http_client_get_status_code(client);
@@ -435,8 +456,7 @@ int8_t https_event_get_player_info(char *player_uid, player_type_t player_type)
             ESP_LOGE(TAG, "Get Player failed with status: %d", status);
             ESP_LOGE(TAG, "Response: %s", local_response_buffer);
             memset(local_response_buffer, 0, sizeof(local_response_buffer));
-            esp_http_client_cleanup(client);
-            client = esp_http_client_init(&client_config);
+            https_reconnect();
             return -1;
         }
     }
@@ -460,6 +480,7 @@ int8_t https_event_get_record(void)
     esp_http_client_set_header(client, "Authorization", API_Token);
 
     esp_err_t err = esp_http_client_perform(client);
+    last_conn_timer=esp_timer_get_time();
     if (err == ESP_OK)
     {
         int status = esp_http_client_get_status_code(client);
@@ -500,8 +521,7 @@ int8_t https_event_get_record(void)
             memset(&player_info, 0, sizeof(player_info));
             memset(&record_info, 0, sizeof(record_info));
             memset(local_response_buffer, 0, sizeof(local_response_buffer));
-            esp_http_client_cleanup(client);
-            client = esp_http_client_init(&client_config);
+            https_reconnect();
             return -1;
         }
     }
@@ -551,6 +571,7 @@ int8_t https_event_update_record(double record)
     esp_http_client_set_post_field(client, json_str, strlen(json_str));
 
     esp_err_t err = esp_http_client_perform(client);
+    last_conn_timer=esp_timer_get_time();
     if (err == ESP_OK)
     {
         int status = esp_http_client_get_status_code(client);
@@ -585,8 +606,7 @@ int8_t https_event_update_record(double record)
             ESP_LOGE(TAG, "Response: %s", local_response_buffer);
             memset(local_response_buffer, 0, sizeof(local_response_buffer));
             free(json_str);
-            esp_http_client_cleanup(client);
-            client = esp_http_client_init(&client_config);
+            https_reconnect();
             return -1;
         }
     }
@@ -598,5 +618,28 @@ int8_t https_event_update_record(double record)
         client = esp_http_client_init(&client_config);
         esp_wifi_connect(); // Reconnect Wi-Fi
         return -1;
+    }
+}
+
+void https_event_keep_alive_task(void *args){
+    const int64_t keep_alive_interval_us = 50000000; // 50초
+    const TickType_t task_delay_tick = pdMS_TO_TICKS(7500); // 7.5초마다 검사
+    while (1) {
+        int64_t now = esp_timer_get_time();
+        if (now - last_conn_timer > keep_alive_interval_us) {
+            ESP_LOGI(TAG, "Sending keep-alive ping...");
+
+            esp_http_client_set_url(client, api_url);
+            esp_http_client_set_method(client, HTTP_METHOD_GET);
+            esp_err_t err = esp_http_client_perform(client);
+            if (err != ESP_OK) {
+                ESP_LOGW(TAG, "Keep-alive failed: %s", esp_err_to_name(err));
+                https_reconnect();
+            }
+            last_conn_timer = esp_timer_get_time();
+            memset(local_response_buffer, 0, sizeof(local_response_buffer));
+        }
+        // 1초마다 조건 확인
+        vTaskDelay(task_delay_tick);
     }
 }
