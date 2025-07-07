@@ -331,6 +331,9 @@ int8_t https_event_get_comp(void)
                 comp_info.idx = cJSON_GetObjectItem(item, "idx")->valueint;
                 strncpy((char *)comp_info.comp_name, cJSON_GetObjectItem(item, "compName")->valuestring, sizeof(comp_info.comp_name) - 1);
                 ESP_LOGI(TAG, "Competition found: %s", comp_info.comp_name);
+                char comp_display[64] = {0};
+                snprintf(comp_display, sizeof(comp_display), "%-16s", comp_info.comp_name);
+                lcd_print_second(comp_display);
                 lcd_comp_selected();
                 lcd_print_second((char *)comp_info.comp_name);
                 cJSON_Delete(json);

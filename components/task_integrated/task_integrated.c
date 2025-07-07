@@ -171,7 +171,7 @@ static void app_inspection(void){
     uint64_t start_time=esp_timer_get_time();
     uint64_t remaining_time;
     last_lcd_state=LCD_STATE_NONE;
-    char inspection_buffer[17]={};
+    char inspection_buffer[24]={};
     char sound_name[16];
 
     bool played_8 = false, played_12 = false, played_15 = false, played_dnf = false;
@@ -228,7 +228,7 @@ static void app_inspection(void){
                 }
                 xQueueSend(sound_queue, &sound_name, 0);
                 played_15 = true;
-            }
+            } 
         }
         else if(remaining_time>=12000000){
             lcd_inspection_alert("+12");
@@ -248,11 +248,11 @@ static void app_inspection(void){
             lcd_inspection_alert("+8");
             if (!played_8) {
                 if(strcmp((const char *)player_info.state, "foreign")==0){
-                    strncpy(sound_name, "ready_en.wav", sizeof(sound_name));
+                    strncpy(sound_name, "8s_en.wav", sizeof(sound_name));
                         
                 }
                 else{
-                    strncpy(sound_name, "ready.wav", sizeof(sound_name));
+                    strncpy(sound_name, "8s.wav", sizeof(sound_name));
                 }
                 xQueueSend(sound_queue, &sound_name, 0);
                 played_8 = true;
@@ -264,7 +264,7 @@ static void app_inspection(void){
 
 static void app_timer_running(void){
     lcd_timer_running();
-    char timer_buffer[17]={};
+    char timer_buffer[24]={};
     last_lcd_state=LCD_STATE_NONE;
     while(1){
         if(stackmat_get_time(&stackmatTimer)==2){
@@ -300,7 +300,7 @@ static void app_timer_running(void){
 }
 
 static void app_timer_stopped(void){
-    char record_buffer[17] = {};
+    char record_buffer[24] = {};
     char seq[8]; // 충분한 크기 확보
     if(record_info.extraNum == 0){
         snprintf(seq, sizeof(seq), "%d", record_info.seq);
@@ -454,6 +454,7 @@ void app_task_stop(void){
 void app_task_restart(void){
     app_task_stop();
     rc522_custom_pause();
+    app_state=APP_STATE_REGIST_PLAYER;
     memset(&judge_info, 0, sizeof(judge_info));
     memset(&player_info, 0, sizeof(player_info));
     memset(&record_info, 0, sizeof(record_info));
