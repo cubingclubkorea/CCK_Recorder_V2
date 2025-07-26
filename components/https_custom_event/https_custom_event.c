@@ -9,6 +9,8 @@
 #include "esp_wifi.h"
 #include "esp_event.h"
 #include "esp_log.h"
+#include "esp_ota_ops.h"
+#include "esp_https_ota.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "nvs_flash.h"
@@ -38,13 +40,22 @@
 
 static const char *TAG = "HTTP_EVENT";
 
+static char OTA_Token[512] = {0};
+
 static char API_Token[512] = {0};
+
+static char ota_url[SERVER_URL_MAX_SZ] = {0};
 
 static char api_url[SERVER_URL_MAX_SZ] = {0};
 
 static char local_response_buffer[MAX_HTTP_OUTPUT_BUFFER + 1] = {0};
 
 static volatile uint32_t last_isr_time = 0;
+
+static ota_auth_t ota_auth = {
+    .ota_id = "",
+    .ota_pass = "",
+};
 
 static api_auth_t api_auth = {
     .api_id = "",
@@ -60,8 +71,45 @@ comp_info_t comp_info = {};
 judge_info_t judge_info = {};
 player_info_t player_info = {};
 record_info_t record_info = {};
+uint8_t firmware_version[16] = {0};
+uint8_t device_version[16] = {0};
+
+static esp_http_client_handle_t ota_client = NULL;
 
 static esp_http_client_handle_t client = NULL;
+
+esp_err_t _http_event_handler_ota(esp_http_client_event_t *evt)
+{
+    switch (evt->event_id)
+    {
+    case HTTP_EVENT_ERROR:
+        ESP_LOGD(TAG, "HTTP_EVENT_ERROR");
+        break;
+    case HTTP_EVENT_ON_CONNECTED:
+        ESP_LOGD(TAG, "HTTP_EVENT_ON_CONNECTED");
+        break;
+    case HTTP_EVENT_HEADER_SENT:
+        ESP_LOGD(TAG, "HTTP_EVENT_HEADER_SENT");
+        break;
+    case HTTP_EVENT_ON_HEADER:
+        ESP_LOGD(TAG, "HTTP_EVENT_ON_HEADER, key=%s, value=%s", evt->header_key, evt->header_value);
+        break;
+    case HTTP_EVENT_ON_DATA:
+        ESP_LOGD(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
+        break;
+    case HTTP_EVENT_ON_FINISH:
+        ESP_LOGD(TAG, "HTTP_EVENT_ON_FINISH");
+        break;
+    case HTTP_EVENT_DISCONNECTED:
+        ESP_LOGI(TAG, "HTTP_EVENT_DISCONNECTED");
+        break;
+    case HTTP_EVENT_REDIRECT:
+        ESP_LOGD(TAG, "HTTP_EVENT_REDIRECT");
+        break;
+    }
+    return ESP_OK;
+}
+
 
 esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 {
@@ -100,6 +148,14 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 }
 
 static esp_http_client_config_t client_config = {
+    .timeout_ms = 3000,
+    .user_data = local_response_buffer,   // 응답 저장 위치
+    .event_handler = _http_event_handler, // 이벤트 핸들러 등록
+    .buffer_size = MAX_HTTP_RECV_BUFFER,
+    .crt_bundle_attach = esp_crt_bundle_attach,
+};
+
+static esp_http_client_config_t ota_client_config = {
     .timeout_ms = 3000,
     .user_data = local_response_buffer,   // 응답 저장 위치
     .event_handler = _http_event_handler, // 이벤트 핸들러 등록
@@ -147,6 +203,38 @@ int8_t https_event_init(void)
         api_url[0] = '\0'; // Set to empty string if not found
     }
 
+    len = sizeof(ota_auth.ota_id);
+    err = nvs_get_str(nvs_handle, "ota_id", (char *)ota_auth.ota_id, &len);
+    if (err != ESP_OK)
+    {
+        ESP_LOGI("NVS", "ota id not found, using default: %s", esp_err_to_name(err));
+        ota_auth.ota_id[0] = '\0'; // Set to empty string if not found
+    }
+
+    len = sizeof(ota_auth.ota_pass);
+    err = nvs_get_str(nvs_handle, "ota_pass", (char *)ota_auth.ota_pass, &len);
+    if (err != ESP_OK)
+    {
+        ESP_LOGI("NVS", "ota pass not found, using default: %s", esp_err_to_name(err));
+        ota_auth.ota_pass[0] = '\0'; // Set to empty string if not found
+    }
+
+    len = sizeof(ota_url);
+    err = nvs_get_str(nvs_handle, "ota_url", (char *)ota_url, &len);
+    if (err != ESP_OK)
+    {
+        ESP_LOGI("NVS", "ota_url not found, using default: %s", esp_err_to_name(err));
+        ota_url[0] = '\0'; // Set to empty string if not found
+    }
+
+    len = sizeof(device_version);
+    err = nvs_get_str(nvs_handle, "ota_version", (char *)device_version, &len);
+    if (err != ESP_OK)
+    {
+        ESP_LOGI("NVS", "ota_version not found, using default: %s", esp_err_to_name(err));
+        device_version[0] = '\0'; // Set to empty string if not found
+    }
+
     nvs_close(nvs_handle);
 
     client_config.url = api_url;
@@ -158,7 +246,7 @@ int8_t https_event_init(void)
         return -1;
     }
     last_conn_timer=esp_timer_get_time();
-    xTaskCreate(https_event_keep_alive_task, "Keep_alive", 2048, NULL, tskIDLE_PRIORITY + 1, NULL);
+    xTaskCreate(https_event_keep_alive_task, "Keep_alive", 8192, NULL, tskIDLE_PRIORITY + 1, NULL);
     return 0;
 }
 
@@ -173,6 +261,127 @@ esp_err_t https_reconnect(void){
         return ESP_FAIL;
     }
     return ESP_OK;
+}
+
+int8_t https_event_latest_version(void)
+{
+    ota_client_config.url = ota_url;
+    ESP_LOGI(TAG, "HTTP request with url => %s", ota_url);
+    ota_client = esp_http_client_init(&ota_client_config);
+    if (ota_client == NULL) {
+        ESP_LOGE(TAG, "Failed to initialize HTTP client");
+        return -1;
+    }
+
+    char ota_latest_url[SERVER_URL_MAX_SZ + sizeof("/device/login") + 1] = {0};
+    snprintf(ota_latest_url, sizeof(ota_latest_url), "%s/device/login", ota_url);
+    
+    esp_http_client_set_url(ota_client, ota_latest_url);
+    esp_http_client_set_method(ota_client, HTTP_METHOD_POST);
+    esp_http_client_set_header(ota_client, "Content-Type", "application/json");
+
+    cJSON *json = cJSON_CreateObject();
+    if (json == NULL) {
+        ESP_LOGE(TAG, "Failed to create JSON object");
+        esp_http_client_cleanup(ota_client);
+        return -1;
+    }
+    cJSON_AddStringToObject(json, "device_id", (const char *)ota_auth.ota_id);
+    cJSON_AddStringToObject(json, "device_password", (const char *)ota_auth.ota_pass);
+    char *json_str = cJSON_PrintUnformatted(json);
+    cJSON_Delete(json);
+
+    if (json_str == NULL) {
+        ESP_LOGE(TAG, "Failed to print JSON string");
+        esp_http_client_cleanup(ota_client);
+        return -1;
+    }
+
+    esp_http_client_set_post_field(ota_client, json_str, strlen(json_str));
+
+    esp_err_t err = esp_http_client_perform(ota_client);
+    if (err == ESP_OK)
+    {
+        int status = esp_http_client_get_status_code(ota_client);
+        ESP_LOGI(TAG, "HTTP OTA Login Status = %d", status);
+        if (status == 200)
+        {
+            cJSON *json = cJSON_Parse(local_response_buffer);
+            if (json == NULL) {
+                ESP_LOGE(TAG, "Failed to parse JSON login response");
+                memset(local_response_buffer, 0, sizeof(local_response_buffer));
+                esp_http_client_cleanup(ota_client);
+                return -1;
+            }
+            snprintf(OTA_Token, sizeof(OTA_Token), "Bearer %s", cJSON_GetObjectItem(json, "token")->valuestring);
+            snprintf((char *)firmware_version, sizeof(firmware_version), "%s", cJSON_GetObjectItem(json, "latest_firmware")->valuestring);
+            cJSON_Delete(json);
+            memset(local_response_buffer, 0, sizeof(local_response_buffer));
+            esp_http_client_cleanup(ota_client);
+            return 0;
+        }
+        else
+        {
+            esp_http_client_cleanup(ota_client);
+            memset(local_response_buffer, 0, sizeof(local_response_buffer));
+            return -1;
+        }
+    }
+    else
+    {
+        ESP_LOGE(TAG, "HTTP GET request failed: %s", esp_err_to_name(err));
+        esp_http_client_cleanup(ota_client);
+        memset(local_response_buffer, 0, sizeof(local_response_buffer));
+        return -1;
+    }
+}
+
+esp_err_t http_ota_client_init_cb(esp_http_client_handle_t client) {
+    return esp_http_client_set_header(client, "Authorization", OTA_Token);
+}
+
+void https_event_ota_update(void){
+    char ota_update_url[SERVER_URL_MAX_SZ + sizeof("/device/download") + 1] = {0};
+    snprintf(ota_update_url, sizeof(ota_update_url), "%s/device/download", ota_url);
+
+    esp_http_client_config_t ota_client_config = {
+        .url = ota_update_url,
+        .event_handler = _http_event_handler_ota, // 이벤트 핸들러 등록
+        .keep_alive_enable = true,
+        .crt_bundle_attach = esp_crt_bundle_attach,
+    };
+    esp_https_ota_config_t ota_config = {
+        .http_config = &ota_client_config,
+        .http_client_init_cb = http_ota_client_init_cb,
+    };
+
+    lcd_update();
+    esp_err_t err=esp_https_ota(&ota_config);
+    if(err==ESP_OK){
+        nvs_handle_t nvs_handle;
+        esp_err_t err_part = nvs_open_from_partition("nvs_auth", "auth_settings", NVS_READWRITE, &nvs_handle);
+        if (err_part != ESP_OK) {
+            ESP_LOGE("NVS", "nvs_open failed: %s", esp_err_to_name(err_part));
+            return;
+        }
+
+        err_part = nvs_set_str(nvs_handle, "ota_version", (const char *)firmware_version);
+        if (err_part != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to write version");
+        }
+        nvs_close(nvs_handle);
+
+        ESP_LOGI(TAG, "OTA update successful, restarting...");
+        lcd_update_complete();
+        vTaskDelay(pdMS_TO_TICKS(2000));
+        esp_restart();
+    }
+    else{
+        ESP_LOGE(TAG, "OTA update failed: %s", esp_err_to_name(err));
+        lcd_update_failed();
+        vTaskDelay(pdMS_TO_TICKS(2000));
+    }
+    memset(local_response_buffer, 0, sizeof(local_response_buffer));
 }
 
 int8_t https_event_login(void)

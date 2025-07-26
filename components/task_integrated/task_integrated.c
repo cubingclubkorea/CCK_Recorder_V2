@@ -478,13 +478,36 @@ void app_initiate(void){
     rc522_custom_init();
     fatfs_custom_mount();
     wifi_init_sta();
-
     EventBits_t bits = xEventGroupGetBits(s_wifi_event_group);
     if (bits & WIFI_CONNECTED_BIT) {
         button_event_init();
         https_event_init();
-        https_event_login();
-        https_event_get_comp();
+        https_event_latest_version();
+        if(strcmp((const char *)device_version, (const char *)firmware_version)!=0){
+            lcd_update_available((char *)firmware_version);
+            while (1)
+                {
+                    uint8_t button_event = button_checker();
+                    if(button_event==1){
+                        https_event_ota_update();
+                        break;
+                    }
+                    else if(button_event==2){
+                        break;
+                    }
+                    vTaskDelay(pdMS_TO_TICKS(10));
+                }
+        }
+        while(1){
+            if(https_event_login()==0){
+                break;
+            }
+        }
+        while(1){
+            if(https_event_get_comp()==0){
+                break;
+            }
+        }
         app_task_start();
         reset_all_task_start();
         sound_init();

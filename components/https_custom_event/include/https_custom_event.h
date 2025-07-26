@@ -5,6 +5,11 @@
 #include "esp_http_client.h"
 
 typedef struct {
+    uint8_t ota_id[20];
+    uint8_t ota_pass[20];
+} ota_auth_t;
+
+typedef struct {
     uint8_t api_id[33];
     uint8_t api_pass[17];
 } api_auth_t;
@@ -50,9 +55,13 @@ extern comp_info_t comp_info;
 extern judge_info_t judge_info;
 extern player_info_t player_info;
 extern record_info_t record_info;
+extern uint8_t firmware_version[];
+extern uint8_t device_version[];
 
 int8_t https_event_init(void);
 esp_err_t https_reconnect(void);
+int8_t https_event_latest_version(void);
+void https_event_ota_update(void);
 int8_t https_event_login(void);
 int8_t https_event_get_comp(void);
 int8_t https_event_get_player_info(char *player_uid, player_type_t player_type);
