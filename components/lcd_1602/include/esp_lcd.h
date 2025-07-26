@@ -99,6 +99,9 @@ void lcd_inspection_alert(char *alert);
 void lcd_timer_running(void);
 void lcd_timer_stopped(char *seq);
 void lcd_timer_disconnected(void);
-
+void lcd_update_available(char *version);
+void lcd_update(void);
+void lcd_update_failed(void);
+void lcd_update_complete(void);
 
 #endif

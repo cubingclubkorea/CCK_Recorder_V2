@@ -1,5 +1,5 @@
 idf_component_register(
     SRCS "https_custom_event.c"
     INCLUDE_DIRS "include"
-    REQUIRES esp-tls esp_wifi esp_timer nvs_flash esp_http_client cJSON button_event lcd_1602
+    REQUIRES esp-tls esp_wifi esp_timer nvs_flash esp_http_client cJSON button_event lcd_1602 esp_https_ota app_update
 )
