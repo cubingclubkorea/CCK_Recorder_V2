@@ -498,3 +498,27 @@ void lcd_timer_disconnected(void){
     lcdSetText(&lcd_base, "Timer Disconect", 0, 0);
     lcdSetText(&lcd_base, "Please connect", 0, 1);
 }
+
+void lcd_update_available(char *version){
+    char message[36];
+    snprintf(message, sizeof(message), "%s available", version);
+    lcdClear(&lcd_base);
+    lcdSetText(&lcd_base, message, 0, 0);
+    lcdSetText(&lcd_base, "Update? (Y/N)", 0, 1);
+}
+
+void lcd_update(void){
+    lcdClear(&lcd_base);
+    lcdSetText(&lcd_base, "Updating...", 0, 0);
+}
+
+void lcd_update_failed(void){
+    lcdClear(&lcd_base);
+    lcdSetText(&lcd_base, "Update failed...", 0, 0);
+}
+
+void lcd_update_complete(void){
+    lcdClear(&lcd_base);
+    lcdSetText(&lcd_base, "Complete!", 0, 0);
+    lcdSetText(&lcd_base, "Restarting...", 0, 1);
+}
