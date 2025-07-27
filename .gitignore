@@ -5,3 +5,4 @@ nvs*
 fatfs.img
 fatfs_make.*
 fatfs_upload.*
+*.pem
