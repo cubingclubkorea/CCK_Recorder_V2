@@ -57,11 +57,11 @@
  static void lcdTriggerEN(lcd_t *const lcd)
  {
      gpio_set_level(lcd->en, GPIO_STATE_LOW);
-     vTaskDelay(1 / portTICK_PERIOD_MS);
+     esp_rom_delay_us(1);  // 1us delay
      gpio_set_level(lcd->en, GPIO_STATE_HIGH);
-     vTaskDelay(1 / portTICK_PERIOD_MS);
+     esp_rom_delay_us(1);  // 1us delay
      gpio_set_level(lcd->en, GPIO_STATE_LOW);
-     vTaskDelay(1 / portTICK_PERIOD_MS);
+     esp_rom_delay_us(40);  // 40us delay
  }
  
  /**

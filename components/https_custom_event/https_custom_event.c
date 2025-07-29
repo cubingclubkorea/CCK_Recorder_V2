@@ -406,8 +406,7 @@ int8_t https_event_login(void)
 
     if (json_str == NULL) {
         ESP_LOGE(TAG, "Failed to print JSON string");
-        esp_http_client_cleanup(client);
-        client = esp_http_client_init(&client_config);
+        https_reconnect();
         return -1;
     }
 
@@ -451,8 +450,7 @@ int8_t https_event_login(void)
     {
         ESP_LOGE(TAG, "HTTP GET request failed: %s", esp_err_to_name(err));
         free(json_str);
-        esp_http_client_cleanup(client);
-        client = esp_http_client_init(&client_config);
+        https_reconnect();
         return -1;
     }
 }
@@ -558,8 +556,7 @@ int8_t https_event_get_comp(void)
                     ESP_LOGE(TAG, "Memory allocation failed for competition list");
                     cJSON_Delete(json);
                     memset(local_response_buffer, 0, sizeof(local_response_buffer));
-                    esp_http_client_cleanup(client);
-                    client = esp_http_client_init(&client_config);
+                    https_reconnect();
                     return -1;
                 }
                 for (int i = 0; i < comp_info_list_size; i++)
@@ -587,8 +584,7 @@ int8_t https_event_get_comp(void)
     else
     {
         ESP_LOGE(TAG, "HTTP Get Competition request failed: %s", esp_err_to_name(err));
-        esp_http_client_cleanup(client);
-        client = esp_http_client_init(&client_config);
+        https_reconnect();
         return -1;
     }
 }
@@ -672,8 +668,7 @@ int8_t https_event_get_player_info(char *player_uid, player_type_t player_type)
     else
     {
         ESP_LOGE(TAG, "HTTP Get Player request failed: %s", esp_err_to_name(err));
-        esp_http_client_cleanup(client);
-        client = esp_http_client_init(&client_config);
+        https_reconnect();
         esp_wifi_connect(); // Reconnect Wi-Fi
         return -1;
     }
@@ -739,8 +734,7 @@ int8_t https_event_get_record(void)
         ESP_LOGE(TAG, "HTTP Get Record request failed: %s", esp_err_to_name(err));
         memset(&player_info, 0, sizeof(player_info));
         memset(&record_info, 0, sizeof(record_info));
-        esp_http_client_cleanup(client);
-        client = esp_http_client_init(&client_config);
+        https_reconnect();
         esp_wifi_connect(); // Reconnect Wi-Fi
         return -1;
     }
@@ -759,8 +753,7 @@ int8_t https_event_update_record(double record)
     cJSON *json = cJSON_CreateObject();
     if (json == NULL) {
         ESP_LOGE(TAG, "Failed to create JSON object");
-        esp_http_client_cleanup(client);
-        client = esp_http_client_init(&client_config);
+        https_reconnect();
         return -1;
     }
     cJSON_AddNumberToObject(json, "attemptIdx", record_info.attempt_idx);
@@ -772,8 +765,7 @@ int8_t https_event_update_record(double record)
 
     if (json_str == NULL) {
         ESP_LOGE(TAG, "Failed to print JSON string");
-        esp_http_client_cleanup(client);
-        client = esp_http_client_init(&client_config);
+        https_reconnect();
         return -1;
     }
 
@@ -823,8 +815,7 @@ int8_t https_event_update_record(double record)
     {
         ESP_LOGE(TAG, "HTTP Update Record request failed: %s", esp_err_to_name(err));
         free(json_str);
-        esp_http_client_cleanup(client);
-        client = esp_http_client_init(&client_config);
+        https_reconnect();
         esp_wifi_connect(); // Reconnect Wi-Fi
         return -1;
     }
