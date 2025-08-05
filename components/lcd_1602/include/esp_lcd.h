@@ -103,5 +103,5 @@ void lcd_update_available(char *version);
 void lcd_update(void);
 void lcd_update_failed(void);
 void lcd_update_complete(void);
-
+void lcd_find_comp(void);
 #endif

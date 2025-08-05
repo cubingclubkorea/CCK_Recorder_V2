@@ -522,3 +522,9 @@ void lcd_update_complete(void){
     lcdSetText(&lcd_base, "Complete!", 0, 0);
     lcdSetText(&lcd_base, "Restarting...", 0, 1);
 }
+
+void lcd_find_comp(void){
+    lcdClear(&lcd_base);
+    lcdSetText(&lcd_base, "Find Comp...", 0, 0);
+    lcdSetText(&lcd_base, "Please wait...", 0, 1);
+}

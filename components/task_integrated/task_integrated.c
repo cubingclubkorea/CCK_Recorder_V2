@@ -504,6 +504,7 @@ void app_initiate(void){
                     vTaskDelay(pdMS_TO_TICKS(10));
                 }
         }
+        lcd_find_comp();
         while(1){
             if(https_event_login()==0){
                 break;
