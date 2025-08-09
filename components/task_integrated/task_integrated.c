@@ -48,7 +48,7 @@ static void dnf_task(void){
     baseRecordTime.minute = 0;
     baseRecordTime.second = -1;
     baseRecordTime.mill = 0;
-    lcd_print_second("DNF             ");
+    
 }
 
 static void reset_task(void){
@@ -339,7 +339,12 @@ static void app_timer_stopped(void){
         else if(button_event==4){
             reset_task();
             record_format(record_buffer, sizeof(record_buffer));
-            lcd_print_second(record_buffer);
+            if(baseRecordTime.second < 0){
+                lcd_dnf();
+            }
+            else{
+                lcd_print_second(record_buffer);
+            }
         }
         vTaskDelay(pdMS_TO_TICKS(10));
     }
