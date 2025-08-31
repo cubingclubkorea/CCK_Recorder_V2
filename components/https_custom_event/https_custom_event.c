@@ -6,6 +6,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
+#include "freertos/semphr.h"
 #include "esp_wifi.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -33,7 +34,7 @@
 
 #include "button_event.h"
 
-#define MAX_HTTP_RECV_BUFFER 2048
+#define MAX_HTTP_RECV_BUFFER 8192
 #define MAX_HTTP_OUTPUT_BUFFER 8192
 
 #define SERVER_URL_MAX_SZ 256
@@ -42,9 +43,11 @@ static const char *TAG = "HTTP_EVENT";
 
 static char OTA_Token[512] = {0};
 
-static char API_Token[512] = {0};
+static char API_Token[1024] = {0};
 
 static char ota_url[SERVER_URL_MAX_SZ] = {0};
+
+static char sso_url[SERVER_URL_MAX_SZ] = {0};
 
 static char api_url[SERVER_URL_MAX_SZ] = {0};
 
@@ -52,12 +55,14 @@ static char local_response_buffer[MAX_HTTP_OUTPUT_BUFFER + 1] = {0};
 
 static volatile uint32_t last_isr_time = 0;
 
+static SemaphoreHandle_t http_client_mutex;
+
 static ota_auth_t ota_auth = {
     .ota_id = "",
     .ota_pass = "",
 };
 
-static api_auth_t api_auth = {
+static api_auth_t sso_auth = {
     .api_id = "",
     .api_pass = "",
 };
@@ -66,6 +71,8 @@ static comp_info_t *comp_info_list;
 static int comp_info_list_size = 0;
 
 static uint64_t last_conn_timer;
+
+static uint64_t last_token_timer;
 
 comp_info_t comp_info = {};
 judge_info_t judge_info = {};
@@ -110,7 +117,6 @@ esp_err_t _http_event_handler_ota(esp_http_client_event_t *evt)
     return ESP_OK;
 }
 
-
 esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 {
     switch (evt->event_id)
@@ -151,7 +157,8 @@ static esp_http_client_config_t client_config = {
     .timeout_ms = 3000,
     .user_data = local_response_buffer,   // 응답 저장 위치
     .event_handler = _http_event_handler, // 이벤트 핸들러 등록
-    .buffer_size = MAX_HTTP_RECV_BUFFER,
+    .buffer_size = MAX_HTTP_OUTPUT_BUFFER,
+    .buffer_size_tx = MAX_HTTP_RECV_BUFFER,
     .crt_bundle_attach = esp_crt_bundle_attach,
 };
 
@@ -159,12 +166,23 @@ static esp_http_client_config_t ota_client_config = {
     .timeout_ms = 3000,
     .user_data = local_response_buffer,   // 응답 저장 위치
     .event_handler = _http_event_handler, // 이벤트 핸들러 등록
-    .buffer_size = MAX_HTTP_RECV_BUFFER,
+    .buffer_size = MAX_HTTP_OUTPUT_BUFFER,
+    .buffer_size_tx = MAX_HTTP_RECV_BUFFER,
     .crt_bundle_attach = esp_crt_bundle_attach,
 };
 
+void https_init_mutex(void)
+{
+    http_client_mutex = xSemaphoreCreateMutex();
+    if (http_client_mutex == NULL) {
+        ESP_LOGE(TAG, "Failed to create mutex");
+        // 오류 처리
+    }
+}
+
 int8_t https_event_init(void)
 {
+    https_init_mutex();
     nvs_handle_t nvs_handle;
     esp_err_t err = nvs_flash_init_partition("nvs_auth");
     if (err != ESP_OK) {
@@ -179,20 +197,28 @@ int8_t https_event_init(void)
         return -1;
     }
 
-    size_t len = sizeof(api_auth.api_id);
-    err = nvs_get_str(nvs_handle, "api_id", (char *)api_auth.api_id, &len);
+    size_t len = sizeof(sso_auth.api_id);
+    err = nvs_get_str(nvs_handle, "sso_id", (char *)sso_auth.api_id, &len);
     if (err != ESP_OK)
     {
         ESP_LOGI("NVS", "api id not found, using default: %s", esp_err_to_name(err));
-        api_auth.api_id[0] = '\0'; // Set to empty string if not found
+        sso_auth.api_id[0] = '\0'; // Set to empty string if not found
     }
 
-    len = sizeof(api_auth.api_pass);
-    err = nvs_get_str(nvs_handle, "api_pass", (char *)api_auth.api_pass, &len);
+    len = sizeof(sso_auth.api_pass);
+    err = nvs_get_str(nvs_handle, "sso_pass", (char *)sso_auth.api_pass, &len);
     if (err != ESP_OK)
     {
         ESP_LOGI("NVS", "api pass not found, using default: %s", esp_err_to_name(err));
-        api_auth.api_pass[0] = '\0'; // Set to empty string if not found
+        sso_auth.api_pass[0] = '\0'; // Set to empty string if not found
+    }
+
+    len = sizeof(sso_url);
+    err = nvs_get_str(nvs_handle, "sso_url", (char *)sso_url, &len);
+    if (err != ESP_OK)
+    {
+        ESP_LOGI("NVS", "api_url not found, using default: %s", esp_err_to_name(err));
+        sso_url[0] = '\0'; // Set to empty string if not found
     }
 
     len = sizeof(api_url);
@@ -386,74 +412,87 @@ void https_event_ota_update(void){
 
 int8_t https_event_login(void)
 {
-    char login_url[SERVER_URL_MAX_SZ + sizeof("/auth/login") + 1] = {0};
-    snprintf(login_url, sizeof(login_url), "%s/auth/login", api_url);
-    
-    esp_http_client_set_url(client, login_url);
-    esp_http_client_set_method(client, HTTP_METHOD_POST);
-    esp_http_client_set_header(client, "Content-Type", "application/json");
+    int8_t ret = -1;
 
-    cJSON *json = cJSON_CreateObject();
-    if (json == NULL) {
-        ESP_LOGE(TAG, "Failed to create JSON object");
-        esp_http_client_cleanup(client);
-        return -1;
-    }
-    cJSON_AddStringToObject(json, "email", (const char *)api_auth.api_id);
-    cJSON_AddStringToObject(json, "password", (const char *)api_auth.api_pass);
-    char *json_str = cJSON_PrintUnformatted(json);
-    cJSON_Delete(json);
+    if (xSemaphoreTake(http_client_mutex, portMAX_DELAY) == pdTRUE) {
 
-    if (json_str == NULL) {
-        ESP_LOGE(TAG, "Failed to print JSON string");
-        https_reconnect();
-        return -1;
-    }
+        // 로그인용 config 생성, URL에 유저:패스 포함하거나 auth_type 설정 가능
+        esp_http_client_config_t login_config = {
+            .url = sso_url,
+            .method = HTTP_METHOD_POST,
+            .auth_type = HTTP_AUTH_TYPE_BASIC,
+            .username = (char *)sso_auth.api_id,
+            .password = (char *)sso_auth.api_pass,
+            .timeout_ms = 5000,
+            .user_data = local_response_buffer,   // 응답 저장 위치
+            .event_handler = _http_event_handler, // 이벤트 핸들러 등록
+            .buffer_size = MAX_HTTP_OUTPUT_BUFFER,
+            .buffer_size_tx = MAX_HTTP_RECV_BUFFER,
+            .crt_bundle_attach = esp_crt_bundle_attach,
+        };
 
-    esp_http_client_set_post_field(client, json_str, strlen(json_str));
+        esp_http_client_handle_t login_client = esp_http_client_init(&login_config);
+        if (login_client == NULL) {
+            ESP_LOGE(TAG, "Failed to init login http client");
+            goto cleanup;
+        }
 
-    esp_err_t err = esp_http_client_perform(client);
-    last_conn_timer=esp_timer_get_time();
-    if (err == ESP_OK)
-    {
-        int status = esp_http_client_get_status_code(client);
-        ESP_LOGI(TAG, "HTTP Login Status = %d", status);
-        if (status == 200)
+        // POST 데이터 설정
+        const char *post_data = "grant_type=client_credentials&scope=limited.read";
+        esp_http_client_set_header(login_client, "Content-Type", "application/x-www-form-urlencoded");
+        esp_http_client_set_post_field(login_client, post_data, strlen(post_data));
+
+        esp_err_t err = esp_http_client_perform(login_client);
+        if (err == ESP_OK)
         {
-            cJSON *json = cJSON_Parse(local_response_buffer);
-            if (json == NULL) {
-                ESP_LOGE(TAG, "Failed to parse JSON login response");
-                free(json_str);
-                esp_http_client_cleanup(client);
-                client = esp_http_client_init(&client_config);
-                return -1;
+            int status = esp_http_client_get_status_code(login_client);
+            ESP_LOGI(TAG, "HTTP Login Status = %d", status);
+            if (status == 200)
+            {
+                // 응답 내용은 이벤트 핸들러 내에서 받아야 하므로
+                // local_response_buffer 를 적절히 처리하도록 구현 필요
+                // 예시는 json 파싱 처리 예
+                cJSON *json = cJSON_Parse(local_response_buffer);
+                if (json == NULL) {
+                    ESP_LOGE(TAG, "Failed to parse JSON login response");
+                    esp_http_client_cleanup(login_client);
+                    ret = -1;
+                    goto cleanup;
+                }
+                snprintf(API_Token, sizeof(API_Token), "Bearer %s", cJSON_GetObjectItem(json, "access_token")->valuestring);
+                cJSON_Delete(json);
+                memset(local_response_buffer, 0, sizeof(local_response_buffer));
+                last_token_timer = esp_timer_get_time();
+                ret = 0;
             }
-            snprintf(API_Token, sizeof(API_Token), "Bearer %s", cJSON_GetObjectItem(json, "token")->valuestring);
-            cJSON_Delete(json);
-            memset(local_response_buffer, 0, sizeof(local_response_buffer));
-            free(json_str);
-            return 0;
+            else
+            {
+                ESP_LOGE(TAG, "Login failed with status: %d", status);
+                ESP_LOGE(TAG, "Response: %s", local_response_buffer);
+                https_reconnect();
+                ret = -1;
+            }
         }
         else
         {
-            lcd_comp_not_found();
-            ESP_LOGE(TAG, "Login failed with status: %d", status);
-            ESP_LOGE(TAG, "Response: %s", local_response_buffer);
-            vTaskDelay(pdMS_TO_TICKS(3000));
-            esp_restart();
-            free(json_str);
+            ESP_LOGE(TAG, "HTTP Login request failed: %s", esp_err_to_name(err));
             https_reconnect();
-            return -1;
+            ret = -1;
         }
+
+        esp_http_client_cleanup(login_client);
+
+    cleanup:
+        xSemaphoreGive(http_client_mutex);
     }
-    else
-    {
-        ESP_LOGE(TAG, "HTTP GET request failed: %s", esp_err_to_name(err));
-        free(json_str);
-        https_reconnect();
-        return -1;
+    else {
+        ESP_LOGE(TAG, "Failed to take mutex");
+        ret = -1;
     }
+
+    return ret;
 }
+
 
 int8_t https_event_select_comp(void)
 {
@@ -591,88 +630,104 @@ int8_t https_event_get_comp(void)
 
 int8_t https_event_get_player_info(char *player_uid, player_type_t player_type)
 {
-    char player_url[SERVER_URL_MAX_SZ + sizeof("/recorder/info") + 9] = {0};
-    snprintf(player_url, sizeof(player_url), "%s/recorder/info/%s", api_url, player_uid);
+    int8_t ret = -1;
 
-    esp_http_client_set_url(client, player_url);
-    esp_http_client_set_method(client, HTTP_METHOD_GET);
-    esp_http_client_set_header(client, "Authorization", API_Token);
+    if (xSemaphoreTake(http_client_mutex, portMAX_DELAY) == pdTRUE) {
+        char player_url[SERVER_URL_MAX_SZ + sizeof("/recorder/info") + 9] = {0};
+        snprintf(player_url, sizeof(player_url), "%s/recorder/info/%s", api_url, player_uid);
 
-    esp_err_t err = esp_http_client_perform(client);
-    last_conn_timer=esp_timer_get_time();
-    if (err == ESP_OK)
-    {
-        int status = esp_http_client_get_status_code(client);
-        ESP_LOGI(TAG, "HTTP Get Player Status = %d", status);
-        if (status == 200)
+        esp_http_client_set_url(client, player_url);
+        esp_http_client_set_method(client, HTTP_METHOD_GET);
+        esp_http_client_set_header(client, "Authorization", API_Token);
+
+        esp_err_t err = esp_http_client_perform(client);
+        if (err == ESP_OK)
         {
-            cJSON *json = cJSON_Parse(local_response_buffer);
-            if (json == NULL) {
-                ESP_LOGE(TAG, "Failed to parse player JSON");
-                memset(local_response_buffer, 0, sizeof(local_response_buffer));
-                esp_http_client_cleanup(client);
-                client = esp_http_client_init(&client_config);
-                return -1;
-            }
-            switch (player_type)
+            int status = esp_http_client_get_status_code(client);
+            ESP_LOGI(TAG, "HTTP Get Player Status = %d", status);
+            if (status == 200)
             {
-            case player_judge:
-                strncpy((char *)judge_info.judge_name, cJSON_GetObjectItem(json, "enName")->valuestring, sizeof(judge_info.judge_name) - 1);
-                strncpy((char *)judge_info.judge_email, cJSON_GetObjectItem(json, "email")->valuestring, sizeof(judge_info.judge_email) - 1);
-                ESP_LOGI(TAG, "Judge info = %s", judge_info.judge_name);
-                break;
-            case player_player:
-                if(strcmp(cJSON_GetObjectItem(json, "email")->valuestring, (const char *)judge_info.judge_email)==0){
-                    cJSON_Delete(json);
+                last_conn_timer = esp_timer_get_time();
+                cJSON *json = cJSON_Parse(local_response_buffer);
+                if (json == NULL) {
+                    ESP_LOGE(TAG, "Failed to parse player JSON");
                     memset(local_response_buffer, 0, sizeof(local_response_buffer));
-                    ESP_LOGW(TAG, "Player and Judge equals");
-                    return -3;
+                    esp_http_client_cleanup(client);
+                    client = esp_http_client_init(&client_config);
+                    ret = -1;
+                    goto cleanup;
                 }
-                strncpy((char *)player_info.player_name, cJSON_GetObjectItem(json, "enName")->valuestring, sizeof(player_info.player_name) - 1);
-                strncpy((char *)player_info.player_email, cJSON_GetObjectItem(json, "email")->valuestring, sizeof(player_info.player_email) - 1);
-                strncpy((char *)player_info.state, cJSON_GetObjectItem(json, "state")->valuestring, sizeof(player_info.state) - 1);
-                player_info.valid = 0;
-                ESP_LOGI(TAG, "Player info = %s, %s", player_info.player_name, player_info.state);
-                break;
-            case player_check:
-                if (strcmp((char *)player_info.player_email, cJSON_GetObjectItem(json, "email")->valuestring) == 0)
+                switch (player_type)
                 {
-                    player_info.valid = 1;
-                    ESP_LOGI(TAG, "Player matched");
-                }
-                else
-                {
+                case player_judge:
+                    strncpy((char *)judge_info.judge_name, cJSON_GetObjectItem(json, "enName")->valuestring, sizeof(judge_info.judge_name) - 1);
+                    strncpy((char *)judge_info.judge_email, cJSON_GetObjectItem(json, "email")->valuestring, sizeof(judge_info.judge_email) - 1);
+                    ESP_LOGI(TAG, "Judge info = %s", judge_info.judge_name);
+                    break;
+                case player_player:
+                    if(strcmp(cJSON_GetObjectItem(json, "email")->valuestring, (const char *)judge_info.judge_email)==0){
+                        cJSON_Delete(json);
+                        memset(local_response_buffer, 0, sizeof(local_response_buffer));
+                        ESP_LOGW(TAG, "Player and Judge equals");
+                        ret = -3;
+                        goto cleanup;
+                    }
+                    strncpy((char *)player_info.player_name, cJSON_GetObjectItem(json, "enName")->valuestring, sizeof(player_info.player_name) - 1);
+                    strncpy((char *)player_info.player_email, cJSON_GetObjectItem(json, "email")->valuestring, sizeof(player_info.player_email) - 1);
+                    strncpy((char *)player_info.state, cJSON_GetObjectItem(json, "state")->valuestring, sizeof(player_info.state) - 1);
                     player_info.valid = 0;
-                    ESP_LOGI(TAG, "Player not matched");
+                    ESP_LOGI(TAG, "Player info = %s, %s", player_info.player_name, player_info.state);
+                    break;
+                case player_check:
+                    if (strcmp((char *)player_info.player_email, cJSON_GetObjectItem(json, "email")->valuestring) == 0)
+                    {
+                        player_info.valid = 1;
+                        ESP_LOGI(TAG, "Player matched");
+                    }
+                    else
+                    {
+                        player_info.valid = 0;
+                        ESP_LOGI(TAG, "Player not matched");
+                    }
+                    break;
                 }
-                break;
+                cJSON_Delete(json);
+                memset(local_response_buffer, 0, sizeof(local_response_buffer));
+                ret = 0;
             }
-            cJSON_Delete(json);
-            memset(local_response_buffer, 0, sizeof(local_response_buffer));
-            return 0;
-        }
-        else if(status == 204){
-            ESP_LOGE(TAG, "Not registered player");
-            memset(local_response_buffer, 0, sizeof(local_response_buffer));
-            return -2;
+            else if(status == 204){
+                ESP_LOGE(TAG, "Not registered player");
+                memset(local_response_buffer, 0, sizeof(local_response_buffer));
+                ret = -2;
+            }
+            else
+            {
+                ESP_LOGE(TAG, "Get Player failed with status: %d", status);
+                ESP_LOGE(TAG, "Response: %s", local_response_buffer);
+                memset(local_response_buffer, 0, sizeof(local_response_buffer));
+                https_reconnect();
+                ret = -1;
+            }
         }
         else
         {
-            ESP_LOGE(TAG, "Get Player failed with status: %d", status);
-            ESP_LOGE(TAG, "Response: %s", local_response_buffer);
-            memset(local_response_buffer, 0, sizeof(local_response_buffer));
+            ESP_LOGE(TAG, "HTTP Get Player request failed: %s", esp_err_to_name(err));
             https_reconnect();
-            return -1;
+            esp_wifi_connect(); // Reconnect Wi-Fi
+            ret = -1;
         }
+
+    cleanup:
+        xSemaphoreGive(http_client_mutex);
     }
-    else
-    {
-        ESP_LOGE(TAG, "HTTP Get Player request failed: %s", esp_err_to_name(err));
-        https_reconnect();
-        esp_wifi_connect(); // Reconnect Wi-Fi
-        return -1;
+    else {
+        ESP_LOGE(TAG, "Failed to take mutex");
+        ret = -1;
     }
+
+    return ret;
 }
+
 
 int8_t https_event_get_record(void)
 {
@@ -684,13 +739,13 @@ int8_t https_event_get_record(void)
     esp_http_client_set_header(client, "Authorization", API_Token);
 
     esp_err_t err = esp_http_client_perform(client);
-    last_conn_timer=esp_timer_get_time();
     if (err == ESP_OK)
     {
         int status = esp_http_client_get_status_code(client);
         ESP_LOGI(TAG, "HTTP Get Record Status = %d", status);
         if (status == 200)
         {
+            last_conn_timer=esp_timer_get_time();
             cJSON *json = cJSON_Parse(local_response_buffer);
             if (json == NULL) {
                 ESP_LOGE(TAG, "Failed to parse record JSON");
@@ -742,102 +797,131 @@ int8_t https_event_get_record(void)
 
 int8_t https_event_update_record(double record)
 {
+    int8_t ret = -1;
     char update_record_url[SERVER_URL_MAX_SZ + sizeof("/recorder/record") + 1] = {0};
-    snprintf(update_record_url, sizeof(update_record_url), "%s/recorder/record", api_url);
 
-    esp_http_client_set_url(client, update_record_url);
-    esp_http_client_set_method(client, HTTP_METHOD_POST);
-    esp_http_client_set_header(client, "Authorization", API_Token);
-    esp_http_client_set_header(client, "Content-Type", "application/json");
+    if (xSemaphoreTake(http_client_mutex, portMAX_DELAY) == pdTRUE) {
+        snprintf(update_record_url, sizeof(update_record_url), "%s/recorder/record", api_url);
 
-    cJSON *json = cJSON_CreateObject();
-    if (json == NULL) {
-        ESP_LOGE(TAG, "Failed to create JSON object");
-        https_reconnect();
-        return -1;
-    }
-    cJSON_AddNumberToObject(json, "attemptIdx", record_info.attempt_idx);
-    cJSON_AddStringToObject(json, "judgeEmail", (const char *)judge_info.judge_email);
-    cJSON_AddNumberToObject(json, "record", record);
+        esp_http_client_set_url(client, update_record_url);
+        esp_http_client_set_method(client, HTTP_METHOD_POST);
+        esp_http_client_set_header(client, "Authorization", API_Token);
+        esp_http_client_set_header(client, "Content-Type", "application/json");
 
-    char *json_str = cJSON_PrintUnformatted(json);
-    cJSON_Delete(json);
+        cJSON *json = cJSON_CreateObject();
+        if (json == NULL) {
+            ESP_LOGE(TAG, "Failed to create JSON object");
+            https_reconnect();
+            ret = -1;
+            goto cleanup;
+        }
+        cJSON_AddNumberToObject(json, "attemptIdx", record_info.attempt_idx);
+        cJSON_AddStringToObject(json, "judgeEmail", (const char *)judge_info.judge_email);
+        cJSON_AddNumberToObject(json, "record", record);
 
-    if (json_str == NULL) {
-        ESP_LOGE(TAG, "Failed to print JSON string");
-        https_reconnect();
-        return -1;
-    }
+        char *json_str = cJSON_PrintUnformatted(json);
+        cJSON_Delete(json);
 
-    esp_http_client_set_post_field(client, json_str, strlen(json_str));
+        if (json_str == NULL) {
+            ESP_LOGE(TAG, "Failed to print JSON string");
+            https_reconnect();
+            ret = -1;
+            goto cleanup;
+        }
 
-    esp_err_t err = esp_http_client_perform(client);
-    last_conn_timer=esp_timer_get_time();
-    if (err == ESP_OK)
-    {
-        int status = esp_http_client_get_status_code(client);
-        ESP_LOGI(TAG, "HTTP Update Record Status = %d", status);
-        if (status == 200)
+        esp_http_client_set_post_field(client, json_str, strlen(json_str));
+
+        esp_err_t err = esp_http_client_perform(client);
+        if (err == ESP_OK)
         {
-            lcd_uploaded(record_info.seq);
-            vTaskDelay(pdMS_TO_TICKS(2000));
-            ESP_LOGI(TAG, "Record updated successfully");
-            cJSON *json = cJSON_Parse(local_response_buffer);
-            if(json!=NULL){
-                cJSON *single = cJSON_GetObjectItem(json, "single");
-                cJSON *average = cJSON_GetObjectItem(json, "average");
-                if(single || average){
-                    if(record_info.seq==4){
-                        lcd_bwpa(single->valuestring, average->valuestring);
+            int status = esp_http_client_get_status_code(client);
+            ESP_LOGI(TAG, "HTTP Update Record Status = %d", status);
+            if (status == 200)
+            {
+                last_conn_timer=esp_timer_get_time();
+                lcd_uploaded(record_info.seq);
+                vTaskDelay(pdMS_TO_TICKS(2000));
+                ESP_LOGI(TAG, "Record updated successfully");
+                cJSON *json = cJSON_Parse(local_response_buffer);
+                if(json!=NULL){
+                    cJSON *single = cJSON_GetObjectItem(json, "single");
+                    cJSON *average = cJSON_GetObjectItem(json, "average");
+                    if(single || average){
+                        if(record_info.seq==4){
+                            lcd_bwpa(single->valuestring, average->valuestring);
+                        }
+                        else{
+                            lcd_sinavg(single->valuestring, average->valuestring);
+                        }
                     }
-                    else{
-                        lcd_sinavg(single->valuestring, average->valuestring);
-                    }
+                    vTaskDelay(pdMS_TO_TICKS(3000));
                 }
-                vTaskDelay(pdMS_TO_TICKS(3000));
+                cJSON_Delete(json);
+                memset(local_response_buffer, 0, sizeof(local_response_buffer));
+                free(json_str);
+                ret = 0;
+                goto cleanup;
             }
-            cJSON_Delete(json);
-            memset(local_response_buffer, 0, sizeof(local_response_buffer));
-            free(json_str);
-            return 0;
+            else
+            {
+                ESP_LOGE(TAG, "Update Record failed with status: %d", status);
+                ESP_LOGE(TAG, "Response: %s", local_response_buffer);
+                memset(local_response_buffer, 0, sizeof(local_response_buffer));
+                free(json_str);
+                https_reconnect();
+                ret = -1;
+                goto cleanup;
+            }
         }
         else
         {
-            ESP_LOGE(TAG, "Update Record failed with status: %d", status);
-            ESP_LOGE(TAG, "Response: %s", local_response_buffer);
-            memset(local_response_buffer, 0, sizeof(local_response_buffer));
+            ESP_LOGE(TAG, "HTTP Update Record request failed: %s", esp_err_to_name(err));
             free(json_str);
             https_reconnect();
-            return -1;
+            esp_wifi_connect(); // Reconnect Wi-Fi
+            ret = -1;
+            goto cleanup;
         }
+
+    cleanup:
+        xSemaphoreGive(http_client_mutex);
     }
-    else
-    {
-        ESP_LOGE(TAG, "HTTP Update Record request failed: %s", esp_err_to_name(err));
-        free(json_str);
-        https_reconnect();
-        esp_wifi_connect(); // Reconnect Wi-Fi
-        return -1;
+    else {
+        ESP_LOGE(TAG, "Failed to take mutex");
+        ret = -1;
     }
+
+    return ret;
 }
 
 void https_event_keep_alive_task(void *args){
-    const int64_t keep_alive_interval_us = 50000000; // 50초
+    const int64_t keep_alive_interval_us = 50000000LL; // 50초
+    const int64_t keep_token_alive_interval_us = 60000000LL*55; // 55분
     const TickType_t task_delay_tick = pdMS_TO_TICKS(7500); // 7.5초마다 검사
     while (1) {
         int64_t now = esp_timer_get_time();
         if (now - last_conn_timer > keep_alive_interval_us) {
-            ESP_LOGI(TAG, "Sending keep-alive ping...");
+            if (xSemaphoreTake(http_client_mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+                ESP_LOGI(TAG, "Sending keep-alive ping...");
 
-            esp_http_client_set_url(client, api_url);
-            esp_http_client_set_method(client, HTTP_METHOD_GET);
-            esp_err_t err = esp_http_client_perform(client);
-            if (err != ESP_OK) {
-                ESP_LOGW(TAG, "Keep-alive failed: %s", esp_err_to_name(err));
-                https_reconnect();
+                esp_http_client_set_url(client, api_url);
+                esp_http_client_set_method(client, HTTP_METHOD_GET);
+                esp_err_t err = esp_http_client_perform(client);
+                if (err != ESP_OK) {
+                    ESP_LOGW(TAG, "Keep-alive failed: %s", esp_err_to_name(err));
+                    https_reconnect();
+                }
+                last_conn_timer = esp_timer_get_time();
+                memset(local_response_buffer, 0, sizeof(local_response_buffer));
+
+                xSemaphoreGive(http_client_mutex);
+            } else {
+                ESP_LOGW(TAG, "Failed to take mutex for keep-alive");
             }
-            last_conn_timer = esp_timer_get_time();
-            memset(local_response_buffer, 0, sizeof(local_response_buffer));
+        }
+        if (now - last_token_timer > keep_token_alive_interval_us) {
+            ESP_LOGI(TAG, "Token refreshing...");
+            https_event_login();
         }
         // 1초마다 조건 확인
         vTaskDelay(task_delay_tick);

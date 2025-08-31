@@ -94,6 +94,7 @@ void lcd_reset_timer(void);
 void lcd_duplicated_judge(void);
 void lcd_record_info(char *record, char *round);
 void lcd_dnf(void);
+void lcd_dnf_time(void);
 void lcd_inspection(char *inspection);
 void lcd_inspection_alert(char *alert);
 void lcd_timer_running(void);

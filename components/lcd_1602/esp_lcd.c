@@ -476,6 +476,10 @@ void lcd_dnf(void){
     lcdClear(&lcd_base);
     lcdSetText(&lcd_base, "Stop! That's DNF ", 0, 0);
 }
+
+void lcd_dnf_time(void){
+    lcdSetText(&lcd_base, "DNF              ", 0, 1);
+}
 void lcd_inspection(char *inspection){
     lcdSetText(&lcd_base, "Inspection:      ", 0, 0);
     lcdSetText(&lcd_base, inspection, 0, 1);
