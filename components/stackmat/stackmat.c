@@ -22,7 +22,7 @@
 #endif
 
 RecordTime baseRecordTime={};
-char data[9]={};
+char data[32]={};
 
 void stackmat_init(void)
 {

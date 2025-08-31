@@ -15,6 +15,7 @@ TaskHandle_t reset_all_task_handle = NULL;
 StackmatTimer stackmatTimer = {};
 
 static void base_penalty_task(void){
+    ESP_LOGI("Task", "Base Penalty Count: %d", baseRecordTime.penalty_count);
     if(baseRecordTime.penalty_count > 0){
         baseRecordTime.second+=2*baseRecordTime.penalty_count;
         if(baseRecordTime.second >= 60){
@@ -25,6 +26,9 @@ static void base_penalty_task(void){
 }
 
 static void penalty_task(void){
+    if(baseRecordTime.minute==0 && baseRecordTime.second==-1 && baseRecordTime.mill==0){
+        return;
+    }
     baseRecordTime.second+=2;
     if(baseRecordTime.second >= 60){
         baseRecordTime.minute += baseRecordTime.second / 60;
@@ -45,7 +49,7 @@ static void dnf_task(void){
     baseRecordTime.minute = 0;
     baseRecordTime.second = -1;
     baseRecordTime.mill = 0;
-    lcd_print_second("DNF             ");
+    
 }
 
 static void reset_task(void){
@@ -167,6 +171,7 @@ static void app_regist_player(void){
 }
 
 static void app_inspection(void){
+    baseRecordTime.penalty_count = 0;
     uart_flush_input(UART_NUM_2);
     uint64_t start_time=esp_timer_get_time();
     uint64_t remaining_time;
@@ -197,6 +202,7 @@ static void app_inspection(void){
 
         if(remaining_time >= 17000000){
             lcd_dnf();
+            lcd_dnf_time();
             base_dnf_task();
             app_state = APP_STATE_TIMER_STOPPED;
 
@@ -309,7 +315,7 @@ static void app_timer_stopped(void){
         snprintf(seq, sizeof(seq), "ex%d", record_info.extraNum);
     }
     if(baseRecordTime.second < 0){
-        lcd_dnf();
+        lcd_dnf_time();
         dnf_task();
     }
     else{
@@ -331,12 +337,18 @@ static void app_timer_stopped(void){
             }
         }
         else if(button_event==3){
+            lcd_dnf_time();
             dnf_task();
         }
         else if(button_event==4){
             reset_task();
             record_format(record_buffer, sizeof(record_buffer));
-            lcd_print_second(record_buffer);
+            if(baseRecordTime.second < 0){
+                lcd_dnf_time();
+            }
+            else{
+                lcd_print_second(record_buffer);
+            }
         }
         vTaskDelay(pdMS_TO_TICKS(10));
     }
@@ -454,12 +466,15 @@ void app_task_stop(void){
 void app_task_restart(void){
     app_task_stop();
     rc522_custom_pause();
-    app_state=APP_STATE_REGIST_PLAYER;
     memset(&judge_info, 0, sizeof(judge_info));
     memset(&player_info, 0, sizeof(player_info));
     memset(&record_info, 0, sizeof(record_info));
     memset(&stackmatTimer, 0, sizeof(stackmatTimer));
     memset(&baseRecordTime, 0, sizeof(baseRecordTime));
+    lcdFree(&lcd_base);
+    lcdDefault(&lcd_base);
+    lcdInit(&lcd_base);
+    app_state=APP_STATE_REGIST_PLAYER;
     app_task_start();
 }
 
@@ -498,6 +513,7 @@ void app_initiate(void){
                     vTaskDelay(pdMS_TO_TICKS(10));
                 }
         }
+        lcd_find_comp();
         while(1){
             if(https_event_login()==0){
                 break;
