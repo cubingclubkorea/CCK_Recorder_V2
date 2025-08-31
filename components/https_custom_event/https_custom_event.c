@@ -34,7 +34,7 @@
 
 #include "button_event.h"
 
-#define MAX_HTTP_RECV_BUFFER 2048
+#define MAX_HTTP_RECV_BUFFER 8192
 #define MAX_HTTP_OUTPUT_BUFFER 8192
 
 #define SERVER_URL_MAX_SZ 256
@@ -895,8 +895,8 @@ int8_t https_event_update_record(double record)
 }
 
 void https_event_keep_alive_task(void *args){
-    const int64_t keep_alive_interval_us = 50000000; // 50초
-    const int64_t keep_token_alive_interval_us = 60000000*55; // 55분
+    const int64_t keep_alive_interval_us = 50000000LL; // 50초
+    const int64_t keep_token_alive_interval_us = 60000000LL*55; // 55분
     const TickType_t task_delay_tick = pdMS_TO_TICKS(7500); // 7.5초마다 검사
     while (1) {
         int64_t now = esp_timer_get_time();
