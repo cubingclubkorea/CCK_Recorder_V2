@@ -1,15 +1,34 @@
-# _Sample project_
+| Supported Targets | ESP32 | ESP32-S3 |
+| ----------------- | ----- | -------- |
 
-(See the README.md file in the upper level 'examples' directory for more information about examples.)
+# CCK_Recorder
 
-This is the simplest buildable example. The example is used by command `idf.py create-project`
-that copies the project to user specified path and set it's name. For more information follow the [docs page](https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/build-system.html#start-a-new-project)
+## Info
+This is for **speed cubing/sport stacks** record upload, which can be used in competition, festival.  
+It would makes judges **easier, faster, more accurate** in working.
+
+## Main functions
+### Upload/Adjust record
+- Adjust record penalty, DNF with several buttons
+- Upload record, judge info to player's attempt data
+- Integrity about player, judge's info
+
+### Stackmat synchronization
+- Just connect stackmat with AUX cable, then automatically detect, synchronize stackmat data.
+
+### Inspection
+- Just push a OK button, then start the inspection section
+- Every alert events, audio announcement triggers(8s, 12s, 15s)
+- Over 15s and less then 17s, penalty automatically added
+- Over 17s, inspection section stop, give player DNF
+
+### WiFi management
+- If not connected, automatically goes to AP mode, and you can connect and go to configuration page.
+
+### OTA(Over The Air) update
+- Automatically detect new version, and update via WiFi
 
 
-
-## How to use example
-We encourage the users to use the example as a template for the new projects.
-A recommended way is to follow the instructions on a [docs page](https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/build-system.html#start-a-new-project).
 
 ## Example folder contents
 
