@@ -65,7 +65,7 @@ static uint8_t stackmat_get_uart(char *buffer, size_t buffer_size)
 
     uart_get_buffered_data_len(UART_NUM_2, &length);
     while(1){
-        if(length > 8) {
+        if(length > 9) {
             uint64_t inner_start_time = esp_timer_get_time();
             while(1){
                 current_time = esp_timer_get_time();
