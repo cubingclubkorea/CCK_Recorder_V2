@@ -14,6 +14,7 @@
  #include "freertos/FreeRTOS.h"
  #include "freertos/timers.h"
  #include "freertos/task.h"
+ #include "freertos/semphr.h"
  #include "esp_idf_version.h"
  #include "esp_lcd.h"
  #include "esp_log.h"
@@ -46,7 +47,8 @@
 
  #endif
  
- lcd_t lcd_base={};;
+ lcd_t lcd_base={};
+ static SemaphoreHandle_t lcd_mutex = NULL;
 
  /**
   * @brief Trigger LCD enable pin
@@ -57,11 +59,11 @@
  static void lcdTriggerEN(lcd_t *const lcd)
  {
      gpio_set_level(lcd->en, GPIO_STATE_LOW);
-     esp_rom_delay_us(1);  // 1us delay
+     esp_rom_delay_us(2);   // address setup before EN high
      gpio_set_level(lcd->en, GPIO_STATE_HIGH);
-     esp_rom_delay_us(1);  // 1us delay
+     esp_rom_delay_us(5);   // EN pulse width (HD44780: min 230ns, 5us for noise margin)
      gpio_set_level(lcd->en, GPIO_STATE_LOW);
-     esp_rom_delay_us(40);  // 40us delay
+     esp_rom_delay_us(120); // hold time after EN low (HD44780 data cycle: ~37us, 120us margin)
  }
  
  /**
@@ -79,6 +81,7 @@
          /* check if x is high for every bit */
          gpio_set_level(lcd->data[i], (x >> i) & val);
      }
+     esp_rom_delay_us(2);  // 데이터 안정 시간 확보 (GPIO 출력 정착 대기)
  }
  
  /**
@@ -91,6 +94,9 @@
   */
  static void lcdWriteCmd(lcd_t *const lcd, unsigned char cmd, uint8_t lcd_opt)
  {
+     /* 재귀 뮤텍스: lcdClear 안에서 중첩 호출되어도 데드락 없음 */
+     if (lcd_mutex) xSemaphoreTakeRecursive(lcd_mutex, portMAX_DELAY);
+ 
      /* CMD: 1, DATA: 0 */
      (lcd_opt == LCD_CMD) ? gpio_set_level(lcd->regSel, GPIO_STATE_LOW) : gpio_set_level(lcd->regSel, GPIO_STATE_HIGH);
  
@@ -103,10 +109,50 @@
      lcdTriggerEN(lcd);
  
      /* CMD : 1, DATA: 0 */
-     if (lcd_opt == LCD_CMD)
-     {
-         vTaskDelay(10 / portTICK_PERIOD_MS); /* 10 ms delay */
+     if (lcd_opt == LCD_CMD) {
+         esp_rom_delay_us(2000);
      }
+ 
+     if (lcd_mutex) xSemaphoreGiveRecursive(lcd_mutex);
+ }
+ 
+ /**
+  * @brief HD44780 nibble 재동기화 (mutex를 이미 보유한 상태에서 호출)
+  *
+  * nibble 카운터가 어긋난 경우 0x03 nibble을 3회 전송해 8-bit 모드로 강제 복귀시킨 뒤
+  * 0x02 nibble로 4-bit 모드로 복원한다. 화면이 한 번 깨지면 이후 모두 깨지는
+  * 증상을 lcdClear 호출 시마다 자동 치유한다.
+  */
+ static void lcdSoftResetLocked(lcd_t *const lcd)
+ {
+     gpio_set_level(lcd->regSel, GPIO_STATE_LOW);
+ 
+     /* 0x03 nibble × 3: 어떤 nibble 상태에서도 무조건 8-bit 모드로 복귀 */
+     gpio_set_level(lcd->data[0], GPIO_STATE_HIGH); /* D4 */
+     gpio_set_level(lcd->data[1], GPIO_STATE_HIGH); /* D5 */
+     gpio_set_level(lcd->data[2], GPIO_STATE_LOW);  /* D6 */
+     gpio_set_level(lcd->data[3], GPIO_STATE_LOW);  /* D7 */
+     esp_rom_delay_us(2);
+     lcdTriggerEN(lcd);
+     vTaskDelay(5 / portTICK_PERIOD_MS);  /* HD44780 스펙: 첫 번째 리셋 후 >4.1ms */
+     lcdTriggerEN(lcd);
+     vTaskDelay(1 / portTICK_PERIOD_MS);  /* >100us */
+     lcdTriggerEN(lcd);
+     vTaskDelay(1 / portTICK_PERIOD_MS);  /* >100us */
+ 
+     /* 0x02 nibble: 4-bit 모드로 복귀 */
+     gpio_set_level(lcd->data[0], GPIO_STATE_LOW);  /* D4 */
+     gpio_set_level(lcd->data[1], GPIO_STATE_HIGH); /* D5 */
+     gpio_set_level(lcd->data[2], GPIO_STATE_LOW);  /* D6 */
+     gpio_set_level(lcd->data[3], GPIO_STATE_LOW);  /* D7 */
+     esp_rom_delay_us(2);
+     lcdTriggerEN(lcd);
+     vTaskDelay(1 / portTICK_PERIOD_MS);
+ 
+     /* 설정 복원: 4-bit, 2-line, 5x8 / Display On / Auto-Increment */
+     lcdWriteCmd(lcd, 0x28, LCD_CMD);
+     lcdWriteCmd(lcd, 0x0C, LCD_CMD);
+     lcdWriteCmd(lcd, 0x06, LCD_CMD);
  }
  
  /**
@@ -118,6 +164,11 @@
   */
  void lcdInit(lcd_t *const lcd)
  {
+     /* mutex 초기화 (중복 생성 방지) */
+     if (lcd_mutex == NULL) {
+         lcd_mutex = xSemaphoreCreateRecursiveMutex();
+     }
+ 
      /* 100 ms delay */
      vTaskDelay(100 / portTICK_PERIOD_MS);
  
@@ -322,8 +373,12 @@
      /* Check if lcd is active */
      if (lcd->state == LCD_ACTIVE)
      {
-         /* Clear LCD screen */
+         /* nibble 재동기화 후 화면 클리어:
+          * 한 번 깨진 뒤 이후 모두 깨지는 증상을 새 화면마다 자동 복구 */
+         if (lcd_mutex) xSemaphoreTakeRecursive(lcd_mutex, portMAX_DELAY);
+         lcdSoftResetLocked(lcd);
          lcdWriteCmd(lcd, 0x01, LCD_CMD);
+         if (lcd_mutex) xSemaphoreGiveRecursive(lcd_mutex);
      }
  
      /* return lcd status */
@@ -358,6 +413,16 @@
      lcd->regSel = GPIO_NUM_NC; /* Set to no connection */
  
      lcd->state = (lcd_state_t)LCD_INACTIVE;
+ 
+     /* Delete the mutex so lcdInit() creates a fresh one.
+      * Without this, if the previous task holding the mutex was
+      * force-deleted (vTaskDelete), the mutex becomes orphaned and
+      * any subsequent xSemaphoreTakeRecursive call will block forever,
+      * triggering the task watchdog and rebooting the system. */
+     if (lcd_mutex != NULL) {
+         vSemaphoreDelete(lcd_mutex);
+         lcd_mutex = NULL;
+     }
  }
  
  void assert_lcd(lcd_err_t lcd_error){

@@ -3,8 +3,8 @@
   "idf.espIdfPath": "/Users/Mario76/esp/v5.4.1/esp-idf",
   "idf.pythonInstallPath": "C:\\Users\\Mario76\\.espressif\\tools\\idf-python\\3.11.2\\python.exe",
   "idf.openOcdConfigs": [
-    "interface/ftdi/esp32_devkitj_v1.cfg",
-    "target/esp32s3.cfg"
+    "interface/ftdi/esp_ftdi.cfg",
+    "target/esp32.cfg"
   ],
   "idf.port": "/dev/tty.debug-console",
   "idf.toolsPath": "/Users/Mario76/.espressif",
@@ -14,7 +14,7 @@
     "ESP_ROM_ELF_DIR": "C:\\Users\\Mario76\\.espressif\\tools\\esp-rom-elfs\\20230320/",
     "IDF_TARGET": "esp32"
   },
-  "idf.portWin": "COM47",
+  "idf.portWin": "COM9",
   "idf.flashType": "UART",
   "files.associations": {
     "*.dbclient-js": "javascript",
@@ -42,5 +42,6 @@
     "wifimanager.h": "c",
     "rc522_spi.h": "c",
     "i2s.h": "c"
-  }
+  },
+  "idf.currentSetup": "C:\\Users\\Mario76\\esp\\v5.4.3\\esp-idf"
 }

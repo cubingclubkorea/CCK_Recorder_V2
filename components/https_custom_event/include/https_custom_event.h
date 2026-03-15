@@ -21,12 +21,12 @@ typedef struct {
 
 typedef struct {
     uint8_t judge_name[64];
-    uint8_t judge_email[64];
+    uint8_t judge_cckId[64];
 } judge_info_t;
 
 typedef struct {
     uint8_t player_name[64];
-    uint8_t player_email[64];
+    uint8_t player_cckId[64];
     uint8_t state[32];
     uint8_t valid;
 } player_info_t;

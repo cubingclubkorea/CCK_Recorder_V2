@@ -415,6 +415,7 @@ int8_t https_event_login(void)
     int8_t ret = -1;
 
     if (xSemaphoreTake(http_client_mutex, portMAX_DELAY) == pdTRUE) {
+        ESP_LOGI(TAG, "%s, %s, %s", sso_url, sso_auth.api_id, sso_auth.api_pass);
 
         // 로그인용 config 생성, URL에 유저:패스 포함하거나 auth_type 설정 가능
         esp_http_client_config_t login_config = {
@@ -661,11 +662,11 @@ int8_t https_event_get_player_info(char *player_uid, player_type_t player_type)
                 {
                 case player_judge:
                     strncpy((char *)judge_info.judge_name, cJSON_GetObjectItem(json, "enName")->valuestring, sizeof(judge_info.judge_name) - 1);
-                    strncpy((char *)judge_info.judge_email, cJSON_GetObjectItem(json, "email")->valuestring, sizeof(judge_info.judge_email) - 1);
+                    strncpy((char *)judge_info.judge_cckId, cJSON_GetObjectItem(json, "cckId")->valuestring, sizeof(judge_info.judge_cckId) - 1);
                     ESP_LOGI(TAG, "Judge info = %s", judge_info.judge_name);
                     break;
                 case player_player:
-                    if(strcmp(cJSON_GetObjectItem(json, "email")->valuestring, (const char *)judge_info.judge_email)==0){
+                    if(strcmp(cJSON_GetObjectItem(json, "cckId")->valuestring, (const char *)judge_info.judge_cckId)==0){
                         cJSON_Delete(json);
                         memset(local_response_buffer, 0, sizeof(local_response_buffer));
                         ESP_LOGW(TAG, "Player and Judge equals");
@@ -673,13 +674,13 @@ int8_t https_event_get_player_info(char *player_uid, player_type_t player_type)
                         goto cleanup;
                     }
                     strncpy((char *)player_info.player_name, cJSON_GetObjectItem(json, "enName")->valuestring, sizeof(player_info.player_name) - 1);
-                    strncpy((char *)player_info.player_email, cJSON_GetObjectItem(json, "email")->valuestring, sizeof(player_info.player_email) - 1);
+                    strncpy((char *)player_info.player_cckId, cJSON_GetObjectItem(json, "cckId")->valuestring, sizeof(player_info.player_cckId) - 1);
                     strncpy((char *)player_info.state, cJSON_GetObjectItem(json, "state")->valuestring, sizeof(player_info.state) - 1);
                     player_info.valid = 0;
                     ESP_LOGI(TAG, "Player info = %s, %s", player_info.player_name, player_info.state);
                     break;
                 case player_check:
-                    if (strcmp((char *)player_info.player_email, cJSON_GetObjectItem(json, "email")->valuestring) == 0)
+                    if (strcmp((char *)player_info.player_cckId, cJSON_GetObjectItem(json, "cckId")->valuestring) == 0)
                     {
                         player_info.valid = 1;
                         ESP_LOGI(TAG, "Player matched");
@@ -695,7 +696,7 @@ int8_t https_event_get_player_info(char *player_uid, player_type_t player_type)
                 memset(local_response_buffer, 0, sizeof(local_response_buffer));
                 ret = 0;
             }
-            else if(status == 204){
+            else if(status == 400){
                 ESP_LOGE(TAG, "Not registered player");
                 memset(local_response_buffer, 0, sizeof(local_response_buffer));
                 ret = -2;
@@ -732,7 +733,7 @@ int8_t https_event_get_player_info(char *player_uid, player_type_t player_type)
 int8_t https_event_get_record(void)
 {
     char get_record_url[SERVER_URL_MAX_SZ + sizeof("/recorder/record") + 1 + 64 + 1] = {0};
-    snprintf(get_record_url, sizeof(get_record_url), "%s/recorder/record/%s/%ld", api_url, player_info.player_email, comp_info.idx);
+    snprintf(get_record_url, sizeof(get_record_url), "%s/recorder/record/%s/%ld", api_url, player_info.player_cckId, comp_info.idx);
 
     esp_http_client_set_url(client, get_record_url);
     esp_http_client_set_method(client, HTTP_METHOD_GET);
@@ -757,7 +758,7 @@ int8_t https_event_get_record(void)
                 return -1;
             }
             record_info.attempt_idx = cJSON_GetObjectItem(json, "attemptIdx")->valueint;
-            strncpy((char *)record_info.player_name, cJSON_GetObjectItem(json, "name")->valuestring, sizeof(record_info.player_name) - 1);
+            strncpy((char *)record_info.player_name, cJSON_GetObjectItem(json, "enName")->valuestring, sizeof(record_info.player_name) - 1);
             strncpy((char *)record_info.round_name, cJSON_GetObjectItem(json, "roundName")->valuestring, sizeof(record_info.round_name) - 1);
             record_info.seq = cJSON_GetObjectItem(json, "seq")->valueint;
             record_info.extraNum = cJSON_GetObjectItem(json, "extraNum")->valueint;
@@ -766,7 +767,7 @@ int8_t https_event_get_record(void)
             memset(local_response_buffer, 0, sizeof(local_response_buffer));
             return 0;
         }
-        else if(status == 204){
+        else if(status == 400){
             ESP_LOGE(TAG, "No record found for player");
             memset(&player_info, 0, sizeof(player_info));
             memset(&record_info, 0, sizeof(record_info));
@@ -804,7 +805,7 @@ int8_t https_event_update_record(double record)
         snprintf(update_record_url, sizeof(update_record_url), "%s/recorder/record", api_url);
 
         esp_http_client_set_url(client, update_record_url);
-        esp_http_client_set_method(client, HTTP_METHOD_POST);
+        esp_http_client_set_method(client, HTTP_METHOD_PATCH);
         esp_http_client_set_header(client, "Authorization", API_Token);
         esp_http_client_set_header(client, "Content-Type", "application/json");
 
@@ -816,7 +817,7 @@ int8_t https_event_update_record(double record)
             goto cleanup;
         }
         cJSON_AddNumberToObject(json, "attemptIdx", record_info.attempt_idx);
-        cJSON_AddStringToObject(json, "judgeEmail", (const char *)judge_info.judge_email);
+        cJSON_AddStringToObject(json, "judgeCckId", (const char *)judge_info.judge_cckId);
         cJSON_AddNumberToObject(json, "record", record);
 
         char *json_str = cJSON_PrintUnformatted(json);
@@ -844,17 +845,17 @@ int8_t https_event_update_record(double record)
                 ESP_LOGI(TAG, "Record updated successfully");
                 cJSON *json = cJSON_Parse(local_response_buffer);
                 if(json!=NULL){
+                    cJSON *type = cJSON_GetObjectItem(json, "type");
                     cJSON *single = cJSON_GetObjectItem(json, "single");
                     cJSON *average = cJSON_GetObjectItem(json, "average");
-                    if(single || average){
-                        if(record_info.seq==4){
-                            lcd_bwpa(single->valuestring, average->valuestring);
-                        }
-                        else{
-                            lcd_sinavg(single->valuestring, average->valuestring);
-                        }
+                    if(strcmp(type->valuestring, "bwpa")==0){
+                        lcd_bwpa(single->valuestring, average->valuestring);
+                        vTaskDelay(pdMS_TO_TICKS(3000));
                     }
-                    vTaskDelay(pdMS_TO_TICKS(3000));
+                    else if(strcmp(type->valuestring, "result")==0){
+                        lcd_sinavg(single->valuestring, average->valuestring);
+                        vTaskDelay(pdMS_TO_TICKS(3000));
+                    }
                 }
                 cJSON_Delete(json);
                 memset(local_response_buffer, 0, sizeof(local_response_buffer));

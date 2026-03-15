@@ -1,0 +1,10 @@
+key,type,encoding,value
+auth_settings,namespace,,
+ota_id,data,string,"{ota_id}"
+ota_pass,data,string,"{ota_password}"
+ota_url,data,string,"{ota_url}"
+ota_version,data,string,"{version}"
+sso_id,data,string,"{sso_id}"
+sso_pass,data,string,"{sso_pass}"
+sso_url,data,string,"{sso_url}"
+api_url,data,string,"{api_url}"

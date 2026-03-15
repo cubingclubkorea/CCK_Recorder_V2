@@ -448,7 +448,7 @@ void app_task_start(void){
 }
 
 void reset_all_task_start(void){
-    if (xTaskCreate(reset_all_task, "reset_all_task", 2048, NULL, 5, &reset_all_task_handle) != pdPASS) {
+    if (xTaskCreate(reset_all_task, "reset_all_task", 4096, NULL, 5, &reset_all_task_handle) != pdPASS) {
         ESP_LOGE("APP_TASK", "Failed to create app task");
     } else {
         ESP_LOGI("APP_TASK", "Reset all task started successfully");

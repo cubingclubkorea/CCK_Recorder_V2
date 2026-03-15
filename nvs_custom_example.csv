@@ -1,0 +1,6 @@
+key,type,encoding,value
+rec_settings,namespace,,
+sta_ssid,data,string,"{WIFI_SSID}"
+sta_pass,data,string,"{WIFI_PASS}"
+ap_ssid,data,string,"{AP_SSID}"
+ap_pass,data,string,"{AP_PASS}"
